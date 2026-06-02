@@ -2,14 +2,16 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, Zap, ShieldAlert } from 'lucide-react';
+import { Search, Zap, ShieldAlert, Download } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { FileUpload } from '@/components/analysis/FileUpload';
 import { useDebounce } from '@/hooks/useDebounce';
 import { analyzeReadability } from '@/lib/analysis/readability';
 import { calculateWritingMetrics } from '@/lib/analysis/writing-metrics';
 import { analyzeTone } from '@/lib/analysis/tone-analyzer';
-import { ResultsDashboard } from '@/components/analysis/ResultsDashboard';
+import { generatePlagiarismReport } from '@/lib/pdf-generator';
+import PlagiarismTab from '@/components/analysis/tabs/PlagiarismTab';
+import { toast } from 'sonner';
 import { FullAnalysisResult, PlagiarismResult } from '@/types/analysis';
 
 const FREE_WORD_LIMIT = 500;
@@ -24,8 +26,35 @@ export function PlagiarismClient() {
   const [result, setResult] = useState<FullAnalysisResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showFreemiumOverlay, setShowFreemiumOverlay] = useState(true);
+  const [isExporting, setIsExporting] = useState(false);
 
   const debouncedText = useDebounce(text, 500);
+
+  const handleExportPDF = async () => {
+    if (!result) return;
+    setIsExporting(true);
+    try {
+      const plagiarismReportData = {
+        text: result.text,
+        originalityScore: result.plagiarism.originalityScore,
+        similarityScore: result.plagiarism.similarityScore,
+        matches: result.plagiarism.matches,
+        wordCount: result.writingMetrics.wordCount,
+        characterCount: result.writingMetrics.characterCount,
+        sentenceCount: result.writingMetrics.sentenceCount,
+        paragraphCount: result.writingMetrics.paragraphCount,
+        reportId: result.id,
+        generatedAt: new Date(result.timestamp)
+      };
+      await generatePlagiarismReport(plagiarismReportData);
+      toast.success('Plagiarism report downloaded successfully!');
+    } catch (err) {
+      console.error('Failed to generate plagiarism report:', err);
+      toast.error('Failed to export plagiarism report.');
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   const workerRef = useRef<Worker | null>(null);
 
@@ -312,7 +341,6 @@ export function PlagiarismClient() {
               )}
             </motion.div>
           ) : (
-            // Results Dashboard with Freemium overlay
             <motion.div
               key="results"
               initial={{ opacity: 0, scale: 0.95 }}
@@ -320,19 +348,37 @@ export function PlagiarismClient() {
               transition={{ duration: 0.4 }}
               className="space-y-6"
             >
-              {/* Back Button */}
-              <div className="flex justify-start">
+              {/* Header: Scan New Content & Export Button */}
+              <div className="flex flex-col sm:flex-row justify-between items-center gap-4 bg-bg-card border border-border-custom rounded-2xl p-4 shadow-sm">
                 <button
                   onClick={reset}
-                  className="px-5 py-2.5 rounded-xl border border-border-custom bg-bg-card hover:bg-bg-input text-sm font-semibold transition-all cursor-pointer active:scale-95"
+                  className="px-5 py-2.5 rounded-xl border border-border-custom bg-bg-primary/20 hover:bg-bg-input text-xs sm:text-sm font-semibold transition-all cursor-pointer active:scale-95 w-full sm:w-auto text-center"
                 >
                   ← Scan New Content
                 </button>
+                
+                <button
+                  onClick={handleExportPDF}
+                  disabled={isExporting}
+                  className="px-6 py-2.5 rounded-xl bg-accent-purple/10 border border-accent-purple/20 text-accent-light-purple hover:bg-accent-purple hover:text-text-primary transition-all duration-300 flex items-center justify-center gap-2 cursor-pointer font-bold w-full sm:w-auto active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isExporting ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-accent-light-purple border-t-transparent rounded-full animate-spin" />
+                      Exporting...
+                    </>
+                  ) : (
+                    <>
+                      <Download className="w-4.5 h-4.5" />
+                      Export Plagiarism Report ↓
+                    </>
+                  )}
+                </button>
               </div>
 
-              {/* Dashboard Wrapper */}
+              {/* Main Plagiarism Report */}
               <div className="relative">
-                <ResultsDashboard result={result} />
+                <PlagiarismTab plagiarism={result.plagiarism} text={result.text} />
               </div>
             </motion.div>
           )}
