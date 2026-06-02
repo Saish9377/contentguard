@@ -10,6 +10,7 @@ import { analyzeReadability } from '@/lib/analysis/readability';
 import { calculateWritingMetrics } from '@/lib/analysis/writing-metrics';
 import { analyzeTone } from '@/lib/analysis/tone-analyzer';
 import { generatePlagiarismReport } from '@/lib/pdf-generator';
+import { ResultsDashboard } from '@/components/analysis/ResultsDashboard';
 import PlagiarismTab from '@/components/analysis/tabs/PlagiarismTab';
 import { toast } from 'sonner';
 import { FullAnalysisResult, PlagiarismResult } from '@/types/analysis';
@@ -38,13 +39,32 @@ export function PlagiarismClient() {
         text: result.text,
         originalityScore: result.plagiarism.originalityScore,
         similarityScore: result.plagiarism.similarityScore,
-        matches: result.plagiarism.matches,
+        matches: result.plagiarism.matches.map(m => ({
+          text: m.text,
+          matchPercentage: m.matchPercentage,
+          source: m.source,
+          url: m.url,
+          startIndex: m.startIndex || 0,
+          endIndex: m.endIndex || 0,
+        })),
         wordCount: result.writingMetrics.wordCount,
         characterCount: result.writingMetrics.characterCount,
         sentenceCount: result.writingMetrics.sentenceCount,
         paragraphCount: result.writingMetrics.paragraphCount,
         reportId: result.id,
-        generatedAt: new Date(result.timestamp)
+        generatedAt: new Date(result.timestamp),
+        
+        // Premium fields
+        aiScore: result.aiDetection.aiScore,
+        grammarScore: result.grammar.grammarScore,
+        qualityScore: result.qualityScore.overallScore,
+        readabilityScore: result.readability.fleschReadingEase,
+        readingLevel: result.readability.readingLevel,
+        tone: result.tone ? result.tone.tone : 'Neutral',
+        toneConfidence: result.tone ? result.tone.score : 100,
+        avgSentenceLength: result.writingMetrics.averageSentenceLength,
+        grammarErrors: result.grammar.errorCount,
+        plagiarismMatches: result.plagiarism.matches.length
       };
       await generatePlagiarismReport(plagiarismReportData);
       toast.success('Plagiarism report downloaded successfully!');
@@ -348,37 +368,19 @@ export function PlagiarismClient() {
               transition={{ duration: 0.4 }}
               className="space-y-6"
             >
-              {/* Header: Scan New Content & Export Button */}
-              <div className="flex flex-col sm:flex-row justify-between items-center gap-4 bg-bg-card border border-border-custom rounded-2xl p-4 shadow-sm">
+              {/* Back Button */}
+              <div className="flex justify-start">
                 <button
                   onClick={reset}
-                  className="px-5 py-2.5 rounded-xl border border-border-custom bg-bg-primary/20 hover:bg-bg-input text-xs sm:text-sm font-semibold transition-all cursor-pointer active:scale-95 w-full sm:w-auto text-center"
+                  className="px-5 py-2.5 rounded-xl border border-border-custom bg-bg-card hover:bg-bg-input text-sm font-semibold transition-all cursor-pointer active:scale-95"
                 >
                   ← Scan New Content
                 </button>
-                
-                <button
-                  onClick={handleExportPDF}
-                  disabled={isExporting}
-                  className="px-6 py-2.5 rounded-xl bg-accent-purple/10 border border-accent-purple/20 text-accent-light-purple hover:bg-accent-purple hover:text-text-primary transition-all duration-300 flex items-center justify-center gap-2 cursor-pointer font-bold w-full sm:w-auto active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {isExporting ? (
-                    <>
-                      <div className="w-4 h-4 border-2 border-accent-light-purple border-t-transparent rounded-full animate-spin" />
-                      Exporting...
-                    </>
-                  ) : (
-                    <>
-                      <Download className="w-4.5 h-4.5" />
-                      Export Plagiarism Report ↓
-                    </>
-                  )}
-                </button>
               </div>
 
-              {/* Main Plagiarism Report */}
+              {/* Dashboard Wrapper */}
               <div className="relative">
-                <PlagiarismTab plagiarism={result.plagiarism} text={result.text} />
+                <ResultsDashboard result={result} defaultTab="plagiarism" />
               </div>
             </motion.div>
           )}

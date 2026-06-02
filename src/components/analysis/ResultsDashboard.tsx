@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, lazy, Suspense } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FullAnalysisResult } from '@/types/analysis';
 import { ScoreGauge } from './ScoreGauge';
@@ -27,63 +27,89 @@ export function ResultsDashboard({ result, defaultTab = 'ai' }: ResultsDashboard
   const [activeTab, setActiveTab] = useState<'ai' | 'plagiarism' | 'grammar' | 'metrics' | 'tone'>(defaultTab);
   const [isExporting, setIsExporting] = useState(false);
 
+  useEffect(() => {
+    setActiveTab(defaultTab);
+  }, [defaultTab, result.id]);
+
   const exportPDFReport = async () => {
     setIsExporting(true);
     try {
+      // Calculate sentence complexity percentages dynamically
+      const sentences = aiDetection.sentences || [];
+      let simpleCount = 0;
+      let mediumCount = 0;
+      
+      sentences.forEach((s) => {
+        const words = s.text.trim().split(/\s+/).filter(Boolean).length;
+        if (words < 12) simpleCount++;
+        else if (words <= 22) mediumCount++;
+      });
+      
+      const totalCount = sentences.length || 1;
+      const simpleSentencesPct = Math.round((simpleCount / totalCount) * 100);
+      const mediumSentencesPct = Math.round((mediumCount / totalCount) * 100);
+      const complexSentencesPct = 100 - simpleSentencesPct - mediumSentencesPct;
+
+      const reportData = {
+        aiScore: aiDetection.aiScore,
+        originalityScore: plagiarism.originalityScore,
+        grammarScore: grammar.grammarScore,
+        qualityScore: qualityScore.overallScore,
+        readabilityScore: readability.fleschReadingEase,
+        readingLevel: readability.readingLevel,
+        wordCount: writingMetrics.wordCount,
+        characterCount: writingMetrics.characterCount,
+        tone: tone ? tone.tone : 'Neutral',
+        toneConfidence: tone ? tone.score : 100,
+        avgSentenceLength: writingMetrics.averageSentenceLength,
+        contentPreview: result.text,
+        grammarErrors: grammar.errorCount,
+        reportId: result.id,
+        generatedAt: new Date(result.timestamp),
+        simpleSentencesPct,
+        mediumSentencesPct,
+        complexSentencesPct,
+        uniqueWords: writingMetrics.uniqueWords,
+        plagiarismMatches: plagiarism.matches.length,
+        sentenceCount: writingMetrics.sentenceCount,
+        paragraphCount: writingMetrics.paragraphCount,
+        reportType: activeTab === 'plagiarism' ? 'plagiarism' as const : 'ai' as const,
+      };
+
       if (activeTab === 'plagiarism') {
         const plagiarismReportData = {
           text: result.text,
           originalityScore: plagiarism.originalityScore,
           similarityScore: plagiarism.similarityScore,
-          matches: plagiarism.matches,
+          matches: plagiarism.matches.map(m => ({
+            text: m.text,
+            matchPercentage: m.matchPercentage,
+            source: m.source,
+            url: m.url,
+            startIndex: m.startIndex || 0,
+            endIndex: m.endIndex || 0,
+          })),
           wordCount: writingMetrics.wordCount,
           characterCount: writingMetrics.characterCount,
           sentenceCount: writingMetrics.sentenceCount,
           paragraphCount: writingMetrics.paragraphCount,
           reportId: result.id,
-          generatedAt: new Date(result.timestamp)
-        };
-        await generatePlagiarismReport(plagiarismReportData);
-      } else {
-        // Calculate sentence complexity percentages dynamically
-        const sentences = aiDetection.sentences || [];
-        let simpleCount = 0;
-        let mediumCount = 0;
-        
-        sentences.forEach((s) => {
-          const words = s.text.trim().split(/\s+/).filter(Boolean).length;
-          if (words < 12) simpleCount++;
-          else if (words <= 22) mediumCount++;
-        });
-        
-        const totalCount = sentences.length || 1;
-        const simpleSentencesPct = Math.round((simpleCount / totalCount) * 100);
-        const mediumSentencesPct = Math.round((mediumCount / totalCount) * 100);
-        const complexSentencesPct = 100 - simpleSentencesPct - mediumSentencesPct;
-
-        const reportData = {
+          generatedAt: new Date(result.timestamp),
+          
+          // Premium fields
           aiScore: aiDetection.aiScore,
-          originalityScore: plagiarism.originalityScore,
           grammarScore: grammar.grammarScore,
           qualityScore: qualityScore.overallScore,
           readabilityScore: readability.fleschReadingEase,
           readingLevel: readability.readingLevel,
-          wordCount: writingMetrics.wordCount,
-          characterCount: writingMetrics.characterCount,
           tone: tone ? tone.tone : 'Neutral',
           toneConfidence: tone ? tone.score : 100,
           avgSentenceLength: writingMetrics.averageSentenceLength,
-          contentPreview: result.text,
           grammarErrors: grammar.errorCount,
-          reportId: result.id,
-          generatedAt: new Date(result.timestamp),
-          simpleSentencesPct,
-          mediumSentencesPct,
-          complexSentencesPct,
-          uniqueWords: writingMetrics.uniqueWords,
-          plagiarismMatches: plagiarism.matches.length,
+          plagiarismMatches: plagiarism.matches.length
         };
-
+        await generatePlagiarismReport(plagiarismReportData);
+      } else {
         await generatePremiumReport(reportData);
       }
       toast.success('Report downloaded successfully!');
