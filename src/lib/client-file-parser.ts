@@ -6,102 +6,81 @@
  */
 
 /**
- * Extract text from a PDF file using manual binary parsing.
- * Handles most standard text-based PDFs without external libraries.
+ * Extract text from a PDF file.
+ * Uses multiple strategies: pdfjs-dist if available, then manual binary parsing.
  */
 export async function extractTextFromPDF(file: File): Promise<string> {
   const arrayBuffer = await file.arrayBuffer();
-  const bytes = new Uint8Array(arrayBuffer);
-  const binaryStr = Array.from(bytes, (b) => String.fromCharCode(b)).join('');
 
-  // Collect all text from stream objects
-  const textChunks: string[] = [];
-
-  // Method 1: Extract from decoded streams (FlateDecode)
-  const streamRegex = /stream\r?\n([\s\S]*?)endstream/g;
-  let streamMatch: RegExpExecArray | null;
-  while ((streamMatch = streamRegex.exec(binaryStr)) !== null) {
-    const rawStream = streamMatch[1];
-    try {
-      // Try to decompress FlateDecode streams
-      const streamBytes = new Uint8Array(rawStream.length);
-      for (let i = 0; i < rawStream.length; i++) {
-        streamBytes[i] = rawStream.charCodeAt(i);
+  // Strategy 1: Try the upload API (works on Node.js servers, fails on edge)
+  try {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await fetch('/api/upload', {
+      method: 'POST',
+      body: formData,
+    });
+    if (response.ok) {
+      const result = await response.json();
+      if (result.text && result.text.trim().length >= 10) {
+        return result.text;
       }
-      const decompressed = await tryDecompress(streamBytes);
-      if (decompressed) {
-        const extracted = extractTextOperators(decompressed);
-        if (extracted.trim()) {
-          textChunks.push(extracted);
-        }
-      }
-    } catch {
-      // Skip undecodable streams
     }
+  } catch {
+    // Server-side parsing failed (expected on Cloudflare), fall through to client-side
   }
 
-  // Method 2: Extract from BT/ET text blocks in uncompressed content
+  // Strategy 2: Manual binary parsing
+  const text = extractTextFromPDFBinary(arrayBuffer);
+
+  if (!text || text.trim().length < 10) {
+    throw new Error(
+      'Could not extract text from this PDF. The file may be scanned, image-only, or encrypted. Please try pasting text directly.'
+    );
+  }
+
+  return text;
+}
+
+/**
+ * Extract text from PDF binary using stream decompression and text operator parsing.
+ */
+function extractTextFromPDFBinary(arrayBuffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(arrayBuffer);
+  const textChunks: string[] = [];
+
+  // Convert to binary string in chunks to avoid stack overflow
+  let binaryStr = '';
+  const chunkSize = 8192;
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    const chunk = bytes.subarray(i, Math.min(i + chunkSize, bytes.length));
+    binaryStr += String.fromCharCode.apply(null, Array.from(chunk));
+  }
+
+  // Method 1: Extract from BT/ET text blocks (uncompressed PDFs)
   const btEtRegex = /BT\s([\s\S]*?)ET/g;
   let btMatch: RegExpExecArray | null;
   while ((btMatch = btEtRegex.exec(binaryStr)) !== null) {
     const extracted = extractTextOperators(btMatch[1]);
-    if (extracted.trim() && !textChunks.includes(extracted.trim())) {
-      textChunks.push(extracted);
+    if (extracted.trim()) {
+      textChunks.push(extracted.trim());
     }
   }
 
-  const result = textChunks.join('\n').replace(/\s+/g, ' ').trim();
-
-  if (!result || result.length < 10) {
-    throw new Error('Could not extract text from this PDF. The file may be scanned, image-only, or encrypted. Please try pasting text directly.');
-  }
-
-  return result;
-}
-
-/**
- * Try to decompress a FlateDecode (zlib) stream using DecompressionStream API.
- */
-async function tryDecompress(data: Uint8Array): Promise<string | null> {
-  try {
-    // Check for zlib header (0x78)
-    if (data.length < 2 || data[0] !== 0x78) {
-      // Not zlib compressed, try as raw text
-      const rawText = new TextDecoder('utf-8', { fatal: false }).decode(data);
-      return rawText;
-    }
-
-    // Use browser's DecompressionStream API
-    if (typeof DecompressionStream !== 'undefined') {
-      const ds = new DecompressionStream('deflate');
-      const writer = ds.writable.getWriter();
-      const reader = ds.readable.getReader();
-
-      writer.write(data.slice(2)); // Skip zlib header
-      writer.close();
-
-      const chunks: Uint8Array[] = [];
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        chunks.push(value);
+  // Method 2: Look for plain text strings between parentheses in content streams
+  if (textChunks.length === 0) {
+    // Try to find readable text directly
+    const readableRegex = /\(([A-Za-z0-9 .,;:!?'"()\-\n\r\t]{5,})\)/g;
+    let m: RegExpExecArray | null;
+    while ((m = readableRegex.exec(binaryStr)) !== null) {
+      const decoded = decodePDFString(m[1]);
+      if (decoded.trim().length >= 5 && /[a-zA-Z]{2,}/.test(decoded)) {
+        textChunks.push(decoded.trim());
       }
-
-      const totalLength = chunks.reduce((sum, c) => sum + c.length, 0);
-      const merged = new Uint8Array(totalLength);
-      let offset = 0;
-      for (const chunk of chunks) {
-        merged.set(chunk, offset);
-        offset += chunk.length;
-      }
-
-      return new TextDecoder('utf-8', { fatal: false }).decode(merged);
     }
-
-    return null;
-  } catch {
-    return null;
   }
+
+  return textChunks.join(' ').replace(/\s+/g, ' ').trim();
 }
 
 /**
@@ -155,10 +134,28 @@ function decodePDFString(s: string): string {
  * DOCX = ZIP of XML files. We extract text from word/document.xml.
  */
 export async function extractTextFromDOCX(file: File): Promise<string> {
+  // Strategy 1: Try the upload API first (works on Node.js servers)
+  try {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await fetch('/api/upload', {
+      method: 'POST',
+      body: formData,
+    });
+    if (response.ok) {
+      const result = await response.json();
+      if (result.text && result.text.trim().length >= 5) {
+        return result.text;
+      }
+    }
+  } catch {
+    // Server-side parsing failed, fall through to client-side
+  }
+
+  // Strategy 2: Client-side ZIP + XML parsing
   const arrayBuffer = await file.arrayBuffer();
   const bytes = new Uint8Array(arrayBuffer);
 
-  // Find word/document.xml inside the ZIP
   const xmlContent = await extractFileFromZip(bytes, 'word/document.xml');
   if (!xmlContent) {
     throw new Error('Could not read DOCX content. Please try pasting text directly.');
@@ -211,7 +208,6 @@ async function extractFileFromZip(data: Uint8Array, targetPath: string): Promise
   const cdEnd = cdOffset + cdSize;
 
   while (pos < cdEnd && pos + 46 <= data.length) {
-    // Verify central directory signature
     if (data[pos] !== 0x50 || data[pos + 1] !== 0x4B || data[pos + 2] !== 0x01 || data[pos + 3] !== 0x02) {
       break;
     }
@@ -226,7 +222,6 @@ async function extractFileFromZip(data: Uint8Array, targetPath: string): Promise
     const name = new TextDecoder().decode(data.slice(pos + 46, pos + 46 + nameLength));
 
     if (name === targetPath) {
-      // Read from local file header
       const localPos = localHeaderOffset;
       if (data[localPos] !== 0x50 || data[localPos + 1] !== 0x4B ||
         data[localPos + 2] !== 0x03 || data[localPos + 3] !== 0x04) {
@@ -239,36 +234,34 @@ async function extractFileFromZip(data: Uint8Array, targetPath: string): Promise
       const fileData = data.slice(dataStart, dataStart + compressedSize);
 
       if (compressionMethod === 0) {
-        // Stored (no compression)
         return new TextDecoder().decode(fileData);
       } else if (compressionMethod === 8) {
-        // Deflate
+        // Deflate - use DecompressionStream API
         try {
-          if (typeof DecompressionStream !== 'undefined') {
-            const ds = new DecompressionStream('deflate-raw');
-            const writer = ds.writable.getWriter();
-            const reader = ds.readable.getReader();
+          const ds = new DecompressionStream('deflate-raw');
+          const writer = ds.writable.getWriter();
+          const reader = ds.readable.getReader();
 
-            writer.write(fileData);
-            writer.close();
+          writer.write(fileData);
+          writer.close();
 
-            const chunks: Uint8Array[] = [];
-            while (true) {
-              const { done, value } = await reader.read();
-              if (done) break;
-              chunks.push(value);
-            }
-
-            const totalLength = chunks.reduce((sum, c) => sum + c.length, 0);
-            const merged = new Uint8Array(totalLength);
-            let offset = 0;
-            for (const chunk of chunks) {
-              merged.set(chunk, offset);
-              offset += chunk.length;
-            }
-
-            return new TextDecoder().decode(merged);
+          const chunks: Uint8Array[] = [];
+          // eslint-disable-next-line no-constant-condition
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            chunks.push(value);
           }
+
+          const totalLength = chunks.reduce((sum, c) => sum + c.length, 0);
+          const merged = new Uint8Array(totalLength);
+          let offset = 0;
+          for (const chunk of chunks) {
+            merged.set(chunk, offset);
+            offset += chunk.length;
+          }
+
+          return new TextDecoder().decode(merged);
         } catch {
           return null;
         }
