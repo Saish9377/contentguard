@@ -7,7 +7,7 @@ import { ScoreGauge } from './ScoreGauge';
 import {
   FileText, ShieldCheck, SpellCheck, BookOpen, MessageSquare, Download
 } from 'lucide-react';
-import { generatePremiumReport } from '@/lib/pdf-generator';
+import { generatePremiumReport, generatePlagiarismReport } from '@/lib/pdf-generator';
 import { toast } from 'sonner';
 
 // Lazy load tab contents for optimization
@@ -19,61 +19,78 @@ const ToneTab = lazy(() => import('./tabs/ToneTab'));
 
 interface ResultsDashboardProps {
   result: FullAnalysisResult;
+  defaultTab?: 'ai' | 'plagiarism' | 'grammar' | 'metrics' | 'tone';
 }
 
-export function ResultsDashboard({ result }: ResultsDashboardProps) {
+export function ResultsDashboard({ result, defaultTab = 'ai' }: ResultsDashboardProps) {
   const { aiDetection, plagiarism, grammar, readability, writingMetrics, essayStructure, qualityScore, tone } = result;
-  const [activeTab, setActiveTab] = useState<'ai' | 'plagiarism' | 'grammar' | 'metrics' | 'tone'>('ai');
+  const [activeTab, setActiveTab] = useState<'ai' | 'plagiarism' | 'grammar' | 'metrics' | 'tone'>(defaultTab);
   const [isExporting, setIsExporting] = useState(false);
 
   const exportPDFReport = async () => {
     setIsExporting(true);
     try {
-      // Calculate sentence complexity percentages dynamically
-      const sentences = aiDetection.sentences || [];
-      let simpleCount = 0;
-      let mediumCount = 0;
-      
-      sentences.forEach((s) => {
-        const words = s.text.trim().split(/\s+/).filter(Boolean).length;
-        if (words < 12) simpleCount++;
-        else if (words <= 22) mediumCount++;
-      });
-      
-      const totalCount = sentences.length || 1;
-      const simpleSentencesPct = Math.round((simpleCount / totalCount) * 100);
-      const mediumSentencesPct = Math.round((mediumCount / totalCount) * 100);
-      const complexSentencesPct = 100 - simpleSentencesPct - mediumSentencesPct;
+      if (activeTab === 'plagiarism') {
+        const plagiarismReportData = {
+          text: result.text,
+          originalityScore: plagiarism.originalityScore,
+          similarityScore: plagiarism.similarityScore,
+          matches: plagiarism.matches,
+          wordCount: writingMetrics.wordCount,
+          characterCount: writingMetrics.characterCount,
+          sentenceCount: writingMetrics.sentenceCount,
+          paragraphCount: writingMetrics.paragraphCount,
+          reportId: result.id,
+          generatedAt: new Date(result.timestamp)
+        };
+        await generatePlagiarismReport(plagiarismReportData);
+      } else {
+        // Calculate sentence complexity percentages dynamically
+        const sentences = aiDetection.sentences || [];
+        let simpleCount = 0;
+        let mediumCount = 0;
+        
+        sentences.forEach((s) => {
+          const words = s.text.trim().split(/\s+/).filter(Boolean).length;
+          if (words < 12) simpleCount++;
+          else if (words <= 22) mediumCount++;
+        });
+        
+        const totalCount = sentences.length || 1;
+        const simpleSentencesPct = Math.round((simpleCount / totalCount) * 100);
+        const mediumSentencesPct = Math.round((mediumCount / totalCount) * 100);
+        const complexSentencesPct = 100 - simpleSentencesPct - mediumSentencesPct;
 
-      const reportData = {
-        aiScore: aiDetection.aiScore,
-        originalityScore: plagiarism.originalityScore,
-        grammarScore: grammar.grammarScore,
-        qualityScore: qualityScore.overallScore,
-        readabilityScore: readability.fleschReadingEase,
-        readingLevel: readability.readingLevel,
-        wordCount: writingMetrics.wordCount,
-        characterCount: writingMetrics.characterCount,
-        tone: tone ? tone.tone : 'Neutral',
-        toneConfidence: tone ? tone.score : 100,
-        avgSentenceLength: writingMetrics.averageSentenceLength,
-        contentPreview: result.text,
-        grammarErrors: grammar.errorCount,
-        reportId: result.id,
-        generatedAt: new Date(result.timestamp),
-        simpleSentencesPct,
-        mediumSentencesPct,
-        complexSentencesPct,
-        uniqueWords: writingMetrics.uniqueWords,
-        plagiarismMatches: plagiarism.matches.length,
-      };
+        const reportData = {
+          aiScore: aiDetection.aiScore,
+          originalityScore: plagiarism.originalityScore,
+          grammarScore: grammar.grammarScore,
+          qualityScore: qualityScore.overallScore,
+          readabilityScore: readability.fleschReadingEase,
+          readingLevel: readability.readingLevel,
+          wordCount: writingMetrics.wordCount,
+          characterCount: writingMetrics.characterCount,
+          tone: tone ? tone.tone : 'Neutral',
+          toneConfidence: tone ? tone.score : 100,
+          avgSentenceLength: writingMetrics.averageSentenceLength,
+          contentPreview: result.text,
+          grammarErrors: grammar.errorCount,
+          reportId: result.id,
+          generatedAt: new Date(result.timestamp),
+          simpleSentencesPct,
+          mediumSentencesPct,
+          complexSentencesPct,
+          uniqueWords: writingMetrics.uniqueWords,
+          plagiarismMatches: plagiarism.matches.length,
+        };
 
-      await generatePremiumReport(reportData);
+        await generatePremiumReport(reportData);
+      }
       toast.success('Report downloaded successfully!');
     } catch (error) {
       const err = error as Error;
-      console.error('Failed to generate premium report:', err);
-      toast.error(`Failed to export premium report: ${err?.message || String(error)}`);
+      console.error('Failed to generate report:', err);
+      toast.error(`Failed to export report: ${err?.message || String(error)}`);
     } finally {
       setIsExporting(false);
     }
@@ -172,7 +189,7 @@ export function ResultsDashboard({ result }: ResultsDashboardProps) {
                 exit={{ opacity: 0, y: -8 }}
                 transition={{ duration: 0.15 }}
               >
-                <PlagiarismTab plagiarism={plagiarism} />
+                <PlagiarismTab plagiarism={plagiarism} text={result.text} />
               </motion.div>
             )}
 

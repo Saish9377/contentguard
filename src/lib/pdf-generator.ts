@@ -4,6 +4,26 @@ import { applyPlugin } from 'jspdf-autotable';
 // Apply the autoTable plugin to jsPDF prototype
 applyPlugin(jsPDF);
 
+export interface PlagiarismReportData {
+  text: string;
+  originalityScore: number;
+  similarityScore: number;
+  matches: {
+    text: string;
+    matchPercentage: number;
+    source: string;
+    url?: string;
+    startIndex: number;
+    endIndex: number;
+  }[];
+  wordCount: number;
+  characterCount: number;
+  sentenceCount: number;
+  paragraphCount: number;
+  reportId: string;
+  generatedAt: Date;
+}
+
 interface PremiumReportData {
   aiScore: number;           // 0-100
   originalityScore: number;  // 0-100
@@ -602,3 +622,307 @@ export async function generatePremiumReport(data: PremiumReportData): Promise<vo
     throw error;
   }
 }
+
+/**
+ * Generates a premium plagiarism checker report PDF matching the user's expected output.
+ * Contains circular gauges for Plagiarism, Exact Match, Partial Match, and Unique.
+ * Features a detailed statistics table, full text with plagiarized parts highlighted in red,
+ * and a list of matching sources at the end.
+ */
+export async function generatePlagiarismReport(data: PlagiarismReportData): Promise<void> {
+  try {
+    const doc = new jsPDF({
+      orientation: 'portrait',
+      unit: 'mm',
+      format: 'a4'
+    });
+
+    const {
+      text,
+      originalityScore,
+      similarityScore,
+      matches,
+      wordCount,
+      characterCount,
+      sentenceCount,
+      paragraphCount,
+      reportId,
+      generatedAt
+    } = data;
+
+    const dateStr = generatedAt.toISOString().split('T')[0];
+
+    // Helper to draw plagiarism footer retrospectively
+    const drawPlagiarismFooter = (pdfDoc: jsPDF, pageNum: number, totalPagesCount: number) => {
+      pdfDoc.saveGraphicsState();
+      pdfDoc.setDrawColor(226, 232, 240);
+      pdfDoc.setLineWidth(0.3);
+      pdfDoc.line(15, 280, 195, 280);
+
+      pdfDoc.setFont('helvetica', 'normal');
+      pdfDoc.setFontSize(8);
+      pdfDoc.setTextColor(148, 163, 184); // slate-400
+
+      pdfDoc.text('ContentGuard | Plagiarism Scan Report', 15, 285);
+      pdfDoc.text(`Page ${pageNum} of ${totalPagesCount}`, 105, 285, { align: 'center' });
+      pdfDoc.text('contentguard.app', 195, 285, { align: 'right' });
+      pdfDoc.restoreGraphicsState();
+    };
+
+    // Calculate Exact vs Partial match split
+    const totalWords = wordCount || 1;
+    const exactWords = matches
+      .filter(m => m.matchPercentage >= 70)
+      .reduce((sum, m) => sum + m.text.split(/\s+/).filter(Boolean).length, 0);
+
+    const exactScore = Math.min(similarityScore, Math.round((exactWords / totalWords) * 100));
+    const partialScore = Math.max(0, similarityScore - exactScore);
+
+    // =========================================================================
+    // PAGE 1 — SCAN METRICS & GAUGES
+    // =========================================================================
+
+    // 1. Header Area
+    doc.setFillColor(248, 250, 252);
+    doc.rect(15, 15, 180, 20, 'F');
+    doc.setDrawColor(226, 232, 240);
+    doc.setLineWidth(0.3);
+    doc.line(15, 35, 195, 35);
+
+    // Logo text
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(16);
+    doc.setTextColor(124, 92, 252); // purple
+    doc.text('ContentGuard', 20, 25);
+    
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
+    doc.setTextColor(148, 163, 184);
+    doc.text('PLAGIARISM SCAN REPORT', 20, 30);
+
+    // Date & Report Metadata
+    doc.setFontSize(8.5);
+    doc.setTextColor(71, 85, 105);
+    doc.text(`Date: ${generatedAt.toLocaleDateString()}`, 190, 24, { align: 'right' });
+    doc.text(`Report ID: ${reportId}`, 190, 29, { align: 'right' });
+
+    // 2. Main Dashboard Layout (4 side-by-side cards)
+    const ctx = doc.context2d;
+    const r = 11;
+    const circ = 2 * Math.PI * r;
+    const strokeWidth = 5;
+
+    const drawArc = (cx: number, cy: number, radius: number, startAngle: number, endAngle: number, color: string, w: number) => {
+      ctx.beginPath();
+      ctx.arc(cx, cy, radius, startAngle, endAngle, false);
+      ctx.lineWidth = w;
+      ctx.strokeStyle = color;
+      ctx.stroke();
+    };
+
+    const drawGauge = (cx: number, cy: number, radius: number, val: number, color: string) => {
+      // background ring
+      drawArc(cx, cy, radius, 0, 2 * Math.PI, '#e2e8f0', strokeWidth);
+      // filled arc
+      if (val > 0) {
+        const rad = (val / 100) * 2 * Math.PI;
+        drawArc(cx, cy, radius, -0.5 * Math.PI, -0.5 * Math.PI + rad, color, strokeWidth);
+      }
+    };
+
+    // Card 1: Plagiarism Score (Red)
+    doc.setDrawColor(226, 232, 240);
+    doc.setLineWidth(0.3);
+    doc.setFillColor(255, 255, 255);
+    doc.roundedRect(15, 40, 40, 48, 2.5, 2.5, 'S');
+
+    drawGauge(35, 60, r, similarityScore, '#ef4444');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.setTextColor(239, 68, 68);
+    doc.text(`${similarityScore}%`, 35, 59, { align: 'center' });
+    doc.setFontSize(7.5);
+    doc.setTextColor(148, 163, 184);
+    doc.text('Plagiarism', 35, 64, { align: 'center' });
+
+    // Card 2: Exact & Partial (Stacked small gauges)
+    doc.roundedRect(60, 40, 40, 48, 2.5, 2.5, 'S');
+    // Exact Match Gauge
+    drawGauge(80, 50, 6, exactScore, '#ef4444');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7.5);
+    doc.setTextColor(239, 68, 68);
+    doc.text(`${exactScore}%`, 80, 51, { align: 'center' });
+    doc.setFontSize(6);
+    doc.setTextColor(148, 163, 184);
+    doc.text('Exact Match', 80, 60, { align: 'center' });
+
+    // Partial Match Gauge
+    drawGauge(80, 70, 6, partialScore, '#3b82f6');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7.5);
+    doc.setTextColor(59, 130, 246);
+    doc.text(`${partialScore}%`, 80, 71, { align: 'center' });
+    doc.setFontSize(6);
+    doc.setTextColor(148, 163, 184);
+    doc.text('Partial Match', 80, 80, { align: 'center' });
+
+    // Card 3: Unique (Green)
+    doc.roundedRect(105, 40, 40, 48, 2.5, 2.5, 'S');
+    drawGauge(125, 60, r, originalityScore, '#10b981');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.setTextColor(16, 185, 129);
+    doc.text(`${originalityScore}%`, 125, 59, { align: 'center' });
+    doc.setFontSize(7.5);
+    doc.setTextColor(148, 163, 184);
+    doc.text('Unique', 125, 64, { align: 'center' });
+
+    // Card 4: Detailed Statistics Table (slate-400 values)
+    doc.roundedRect(150, 40, 45, 48, 2.5, 2.5, 'S');
+    const statsList = [
+      { label: 'Words', val: wordCount },
+      { label: 'Characters', val: characterCount },
+      { label: 'Sentences', val: sentenceCount },
+      { label: 'Paragraphs', val: paragraphCount },
+      { label: 'Read Time', val: `${Math.max(1, Math.ceil(wordCount / 200))} min` },
+      { label: 'Speak Time', val: `${Math.max(1, Math.ceil(wordCount / 130))} min` }
+    ];
+
+    let statsY = 46;
+    statsList.forEach(s => {
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7.5);
+      doc.setTextColor(100, 116, 139); // slate-500
+      doc.text(s.label, 154, statsY);
+      
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(30, 41, 59); // slate-800
+      doc.text(String(s.val), 191, statsY, { align: 'right' });
+      statsY += 7.2;
+    });
+
+    // 3. Section: Content Checked For Plagiarism (y = 96)
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.setTextColor(30, 41, 59);
+    doc.text('Content Checked For Plagiarism', 15, 98);
+
+    doc.setDrawColor(226, 232, 240);
+    doc.setLineWidth(0.3);
+    doc.line(15, 101, 195, 101);
+
+    let currentY = 108;
+    let pageCount = 1;
+
+    // Split text into sentences using regex
+    const sentences = text.match(/[^.!?]+[.!?]+(\s|$)/g) || [text];
+
+    doc.setFontSize(9.5);
+    doc.setFont('times', 'normal');
+    doc.setTextColor(71, 85, 105);
+
+    for (const sentence of sentences) {
+      const cleanSentence = sentence.trim();
+      if (cleanSentence.length === 0) continue;
+
+      // Check if sentence is plagiarized
+      const isPlagiarized = matches.some(m => {
+        const cleanMatchText = m.text.trim();
+        return cleanSentence.includes(cleanMatchText) || cleanMatchText.includes(cleanSentence);
+      });
+
+      if (isPlagiarized) {
+        doc.setTextColor(239, 68, 68); // red
+        doc.setFont('times', 'bold');
+      } else {
+        doc.setTextColor(71, 85, 105); // gray
+        doc.setFont('times', 'normal');
+      }
+
+      // Wrap sentence text into lines
+      const lines = doc.splitTextToSize(sentence, 180);
+      for (const line of lines) {
+        if (currentY > 265) {
+          doc.addPage();
+          pageCount++;
+          currentY = 25;
+        }
+        doc.text(line, 15, currentY);
+        currentY += 5.2;
+      }
+    }
+
+    // 4. Section: Matched Sources (y = dynamic)
+    currentY += 8;
+    if (currentY > 240) {
+      doc.addPage();
+      pageCount++;
+      currentY = 25;
+    }
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.setTextColor(30, 41, 59);
+    doc.text('Matched Sources & Citations', 15, currentY);
+    currentY += 3;
+
+    doc.setDrawColor(226, 232, 240);
+    doc.setLineWidth(0.3);
+    doc.line(15, currentY, 195, currentY);
+    currentY += 7;
+
+    if (matches.length === 0) {
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(9.5);
+      doc.setTextColor(16, 185, 129); // green
+      doc.text('No plagiarism found. Content is 100% original.', 15, currentY);
+    } else {
+      for (const match of matches) {
+        if (currentY > 245) {
+          doc.addPage();
+          pageCount++;
+          currentY = 25;
+        }
+
+        // Draw a small red accent rect
+        doc.setFillColor(239, 68, 68);
+        doc.rect(15, currentY - 3, 2, 10, 'F');
+
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(9);
+        doc.setTextColor(239, 68, 68); // red
+        doc.text(`${match.matchPercentage}% Match — ${match.source}`, 20, currentY);
+        currentY += 4.2;
+
+        if (match.url) {
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(8);
+          doc.setTextColor(59, 130, 246); // blue link
+          doc.text(match.url, 20, currentY);
+          currentY += 4.2;
+        }
+
+        doc.setFont('times', 'italic');
+        doc.setFontSize(8.5);
+        doc.setTextColor(100, 116, 139);
+        const snippetLines = doc.splitTextToSize(`"${match.text}"`, 170);
+        doc.text(snippetLines, 20, currentY);
+        currentY += snippetLines.length * 4.2 + 6;
+      }
+    }
+
+    // Retrospectively draw footer on all pages
+    const totalPages = doc.getNumberOfPages();
+    for (let i = 1; i <= totalPages; i++) {
+      doc.setPage(i);
+      drawPlagiarismFooter(doc, i, totalPages);
+    }
+
+    doc.save(`Plagiarism-Scan-Report-${dateStr}.pdf`);
+  } catch (error) {
+    console.error('Failed to generate plagiarism report PDF:', error);
+    throw error;
+  }
+}
+
