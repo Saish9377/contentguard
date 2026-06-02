@@ -52,7 +52,9 @@ export function FileUpload({ onTextExtracted, disabled = false }: FileUploadProp
 
       onTextExtracted(text, selectedFile.name);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to process file.');
+      console.error('File processing error:', err);
+      const message = err instanceof Error ? err.message : 'Unknown error processing file.';
+      setError(message);
       setFile(null);
     } finally {
       setIsProcessing(false);
