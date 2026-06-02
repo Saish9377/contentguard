@@ -34,22 +34,12 @@ export function FileUpload({ onTextExtracted, disabled = false }: FileUploadProp
 
       if (ext === '.txt') {
         text = await selectedFile.text();
-      } else {
-        const formData = new FormData();
-        formData.append('file', selectedFile);
-
-        const response = await fetch('/api/upload', {
-          method: 'POST',
-          body: formData,
-        });
-
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || 'Failed to process file.');
-        }
-
-        const result = await response.json();
-        text = result.text;
+      } else if (ext === '.pdf') {
+        const { extractTextFromPDF } = await import('@/lib/client-file-parser');
+        text = await extractTextFromPDF(selectedFile);
+      } else if (ext === '.docx') {
+        const { extractTextFromDOCX } = await import('@/lib/client-file-parser');
+        text = await extractTextFromDOCX(selectedFile);
       }
 
       if (!text || text.trim().length === 0) {
