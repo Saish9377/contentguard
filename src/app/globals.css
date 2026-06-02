@@ -1,26 +1,150 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&family=Syne:wght@700;800&display=swap');
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --bg-primary: #f8f9fc;
+  --bg-card: #ffffff;
+  --bg-input: #f1f3f8;
+  --text-primary: #0d0f14;
+  --text-muted: #64748b;
+  --border-custom: #e2e8f0;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+.dark {
+  --bg-primary: #0d0f14;
+  --bg-card: #13161e;
+  --bg-input: #1a1d27;
+  --text-primary: #f0f0ff;
+  --text-muted: #8b8fa8;
+  --border-custom: #2a2d3a;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+@theme {
+  --font-sans: 'DM Sans', sans-serif;
+  --font-syne: 'Syne', sans-serif;
+  
+  --color-bg-primary: var(--bg-primary);
+  --color-bg-card: var(--bg-card);
+  --color-bg-input: var(--bg-input);
+  
+  --color-accent-purple: #7c5cfc;
+  --color-accent-light-purple: #a78bfa;
+  --color-accent-green: #10b981;
+  --color-accent-pink: #ec4899;
+  
+  --color-text-primary: var(--text-primary);
+  --color-text-muted: var(--text-muted);
+  
+  --color-border-custom: var(--border-custom);
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-primary);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-custom);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #7c5cfc;
+}
+
+/* Selection color */
+::selection {
+  background: rgba(124, 92, 252, 0.25);
+  color: var(--text-primary);
+}
+
+/* Base resets & typography */
+body {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: 'DM Sans', sans-serif;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Syne', sans-serif;
+  font-weight: 700;
+}
+
+/* Animations */
+@keyframes pulse-dot {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.35);
+    opacity: 0.55;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+.animate-pulse-dot {
+  animation: pulse-dot 2s infinite ease-in-out;
+}
+
+/* Custom transitions and premium glow shadows */
+.shadow-premium-glow {
+  box-shadow: 0 0 25px rgba(124, 92, 252, 0.04), 0 0 50px rgba(124, 92, 252, 0.02);
+}
+
+.dark .shadow-premium-glow {
+  box-shadow: 0 0 25px rgba(124, 92, 252, 0.08), 0 0 50px rgba(124, 92, 252, 0.03);
+}
+
+.shadow-purple-glow:hover {
+  box-shadow: 0 10px 25px -5px rgba(124, 92, 252, 0.15), 0 0 15px rgba(124, 92, 252, 0.05);
+  border-color: rgba(124, 92, 252, 0.35) !important;
+}
+
+.dark .shadow-purple-glow:hover {
+  box-shadow: 0 10px 25px -5px rgba(124, 92, 252, 0.25), 0 0 15px rgba(124, 92, 252, 0.1);
+  border-color: rgba(124, 92, 252, 0.35) !important;
+}
+
+.shadow-green-glow:hover {
+  box-shadow: 0 10px 25px -5px rgba(16, 185, 129, 0.15), 0 0 15px rgba(16, 185, 129, 0.05);
+  border-color: rgba(16, 185, 129, 0.35) !important;
+}
+
+.dark .shadow-green-glow:hover {
+  box-shadow: 0 10px 25px -5px rgba(16, 185, 129, 0.25), 0 0 15px rgba(16, 185, 129, 0.1);
+  border-color: rgba(16, 185, 129, 0.35) !important;
+}
+
+.shadow-pink-glow:hover {
+  box-shadow: 0 10px 25px -5px rgba(236, 72, 153, 0.15), 0 0 15px rgba(236, 72, 153, 0.05);
+  border-color: rgba(236, 72, 153, 0.35) !important;
+}
+
+.dark .shadow-pink-glow:hover {
+  box-shadow: 0 10px 25px -5px rgba(236, 72, 153, 0.25), 0 0 15px rgba(236, 72, 153, 0.1);
+  border-color: rgba(236, 72, 153, 0.35) !important;
+}
+
+/* AI sentence highlight options */
+.highlight-human-sentence {
+  background-color: rgba(16, 185, 129, 0.08);
+  border-bottom: 2px solid #10b981;
+}
+
+.highlight-mixed-sentence {
+  background-color: rgba(167, 139, 250, 0.08);
+  border-bottom: 2px solid #a78bfa;
+}
+
+.highlight-ai-sentence {
+  background-color: rgba(236, 72, 153, 0.08);
+  border-bottom: 2px solid #ec4899;
 }
