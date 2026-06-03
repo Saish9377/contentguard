@@ -1038,20 +1038,25 @@ export async function generatePlagiarismReport(data: PlagiarismReportData): Prom
     doc.text(previewLines, 25, 163);
 
     // =========================================================================
-    // PAGE 2 — SCAN METRICS & GAUGES
+    // PAGE 2 — SCAN METRICS & GAUGES (DEDICATED DASHBOARD PAGE)
     // =========================================================================
     doc.addPage();
 
-    // 1. Page Header Banner
+    // 1. Page Header Banner (Purple Gradient Header Bar)
     doc.setFillColor(124, 92, 252);
-    doc.rect(20, 20, 170, 7, 'F');
+    doc.rect(15, 20, 180, 8, 'F');
     doc.setTextColor(255, 255, 255);
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(9);
-    doc.text('Plagiarism Analysis & Detailed Dashboard', 24, 25);
-    // 2. Main Dashboard Layout (4 side-by-side cards)
+    doc.setFontSize(10);
+    doc.text('Plagiarism Analysis & Detailed Dashboard', 20, 25.5);
+
+    // 2. Main Dashboard Layout (ONE unified card: w = 180, h = 85, from y = 34 to y = 119)
+    doc.setDrawColor(226, 232, 240);
+    doc.setLineWidth(0.4);
+    doc.setFillColor(255, 255, 255);
+    doc.roundedRect(15, 34, 180, 85, 3, 3, 'FD');
+
     const ctx = doc.context2d;
-    const r = 11;
     const strokeWidth = 5;
 
     const drawArc = (cx: number, cy: number, radius: number, startAngle: number, endAngle: number, color: string, w: number) => {
@@ -1062,106 +1067,134 @@ export async function generatePlagiarismReport(data: PlagiarismReportData): Prom
       ctx.stroke();
     };
 
-    const drawGauge = (cx: number, cy: number, radius: number, val: number, color: string) => {
+    const drawGauge = (cx: number, cy: number, radius: number, val: number, color: string, w: number = 5) => {
       // background ring
-      drawArc(cx, cy, radius, 0, 2 * Math.PI, '#e2e8f0', strokeWidth);
+      drawArc(cx, cy, radius, 0, 2 * Math.PI, '#e2e8f0', w);
       // filled arc
       if (val > 0) {
         const rad = (val / 100) * 2 * Math.PI;
-        drawArc(cx, cy, radius, -0.5 * Math.PI, -0.5 * Math.PI + rad, color, strokeWidth);
+        drawArc(cx, cy, radius, -0.5 * Math.PI, -0.5 * Math.PI + rad, color, w);
       }
     };
 
-    // Card 1: Plagiarism Score (Red)
-    doc.setDrawColor(239, 68, 68);
-    doc.setLineWidth(0.4);
-    doc.setFillColor(255, 255, 255);
-    doc.roundedRect(15, 36, 40, 48, 2.5, 2.5, 'FD');
+    // Column 1: Large Donut Chart (Plagiarism% vs Unique%)
+    // Center: cx = 45, cy = 76, radius = 22
+    const largeCX = 45;
+    const largeCY = 76;
+    const largeR = 22;
+    const largeW = 7;
 
-    drawGauge(35, 56, r, similarityScore, '#ef4444');
+    // Background ring
+    drawArc(largeCX, largeCY, largeR, 0, 2 * Math.PI, '#e2e8f0', largeW);
+
+    const radUnique = (originalityScore / 100) * 2 * Math.PI;
+    const radPlag = (similarityScore / 100) * 2 * Math.PI;
+
+    // Unique segment (Green)
+    if (originalityScore > 0) {
+      drawArc(largeCX, largeCY, largeR, -0.5 * Math.PI, -0.5 * Math.PI + radUnique, '#10b981', largeW);
+    }
+    // Plagiarism segment (Red)
+    if (similarityScore > 0) {
+      drawArc(largeCX, largeCY, largeR, -0.5 * Math.PI + radUnique, -0.5 * Math.PI + radUnique + radPlag, '#ef4444', largeW);
+    }
+
+    // Center text in large donut
+    const textCol = similarityScore > 10 ? [239, 68, 68] : similarityScore === 0 ? [16, 185, 129] : [245, 158, 11];
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(11);
-    doc.setTextColor(239, 68, 68);
-    doc.text(`${similarityScore}%`, 35, 55, { align: 'center' });
+    doc.setFontSize(20);
+    doc.setTextColor(textCol[0], textCol[1], textCol[2]);
+    doc.text(`${similarityScore}%`, largeCX, largeCY + 1.5, { align: 'center' });
+
+    doc.setFont('helvetica', 'normal');
     doc.setFontSize(7.5);
     doc.setTextColor(148, 163, 184);
-    doc.text('Plagiarism', 35, 60, { align: 'center' });
+    doc.text('Plagiarism', largeCX, largeCY + 7.5, { align: 'center' });
 
-    // Card 2: Exact & Partial (Stacked small gauges)
-    doc.setDrawColor(226, 232, 240);
-    doc.roundedRect(60, 36, 40, 48, 2.5, 2.5, 'FD');
-    // Exact Match Gauge
-    drawGauge(80, 46, 6, exactScore, '#ef4444');
+
+    // Column 2: Stacked small donuts (Exact Match top, Partial Match bottom)
+    const smallCX = 105;
+    const topCY = 56;
+    const bottomCY = 90;
+    const smallR = 9;
+    const smallW = 3.5;
+
+    // Top: Exact Match % (red/orange ring)
+    drawGauge(smallCX, topCY, smallR, exactScore, '#f97316', smallW);
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(7.5);
-    doc.setTextColor(239, 68, 68);
-    doc.text(`${exactScore}%`, 80, 47, { align: 'center' });
-    doc.setFontSize(6);
+    doc.setFontSize(9);
+    doc.setTextColor(249, 115, 22); // orange (#f97316)
+    doc.text(`${exactScore}%`, smallCX, topCY + 1.5, { align: 'center' });
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7);
     doc.setTextColor(148, 163, 184);
-    doc.text('Exact Match', 80, 56, { align: 'center' });
+    doc.text('Exact Match', smallCX, topCY + 12, { align: 'center' });
 
-    // Partial Match Gauge
-    drawGauge(80, 66, 6, partialScore, '#3b82f6');
+    // Bottom: Partial Match % (blue ring)
+    drawGauge(smallCX, bottomCY, smallR, partialScore, '#3b82f6', smallW);
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(7.5);
-    doc.setTextColor(59, 130, 246);
-    doc.text(`${partialScore}%`, 80, 67, { align: 'center' });
-    doc.setFontSize(6);
+    doc.setFontSize(9);
+    doc.setTextColor(59, 130, 246); // blue (#3b82f6)
+    doc.text(`${partialScore}%`, smallCX, bottomCY + 1.5, { align: 'center' });
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7);
     doc.setTextColor(148, 163, 184);
-    doc.text('Partial Match', 80, 76, { align: 'center' });
+    doc.text('Partial Match', smallCX, bottomCY + 12, { align: 'center' });
 
-    // Card 3: Unique (Green)
-    doc.setDrawColor(16, 185, 129);
-    doc.roundedRect(105, 36, 40, 48, 2.5, 2.5, 'FD');
-    drawGauge(125, 56, r, originalityScore, '#10b981');
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(11);
-    doc.setTextColor(16, 185, 129);
-    doc.text(`${originalityScore}%`, 125, 55, { align: 'center' });
-    doc.setFontSize(7.5);
-    doc.setTextColor(148, 163, 184);
-    doc.text('Unique', 125, 60, { align: 'center' });
 
-    // Card 4: Detailed Statistics Table (slate-400 values)
-    doc.setDrawColor(226, 232, 240);
-    doc.roundedRect(150, 36, 45, 48, 2.5, 2.5, 'FD');
-    
+    // Column 3: Document stats table (clean, alternating row bg, words, chars, sentences, paragraphs, read time, speak time)
+    const tableX = 142;
+    const tableY = 38;
+    const tableW = 46;
+    const rHeight = 10.5;
+
     const rTime = Math.max(1, Math.ceil(wordCount / 200));
     const sTime = Math.max(1, Math.ceil(wordCount / 130));
-    
+
     const statsList = [
       { label: 'Words', val: wordCount.toLocaleString() },
       { label: 'Characters', val: characterCount.toLocaleString() },
       { label: 'Sentences', val: (sentenceCount || Math.ceil(wordCount / 15)).toLocaleString() },
       { label: 'Paragraphs', val: (paragraphCount || Math.ceil(wordCount / 50)).toLocaleString() },
-      { label: 'Read Time', val: `${rTime} minute(s)` },
-      { label: 'Speak Time', val: `${sTime} minute(s)` }
+      { label: 'Read Time', val: `${rTime} min(s)` },
+      { label: 'Speak Time', val: `${sTime} min(s)` }
     ];
 
-    let statsY = 42;
-    statsList.forEach(s => {
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(7.5);
-      doc.setTextColor(100, 116, 139); // slate-500
-      doc.text(s.label, 154, statsY);
+    statsList.forEach((stat, idx) => {
+      const rowY = tableY + idx * rHeight;
+      // Alternating row background
+      if (idx % 2 === 0) {
+        doc.setFillColor(248, 250, 252);
+        doc.rect(tableX - 2, rowY - 1.5, tableW + 4, rHeight, 'F');
+      }
       
+      // Muted label
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
+      doc.setTextColor(100, 116, 139); // slate-500
+      doc.text(stat.label, tableX, rowY + 5);
+
+      // Bold value
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(30, 41, 59); // slate-800
-      doc.text(String(s.val), 191, statsY, { align: 'right' });
-      statsY += 7.0;
+      doc.text(stat.val, tableX + tableW, rowY + 5, { align: 'right' });
     });
 
-    // 3. Section: Content Checked For Plagiarism (y = 92)
+    // =========================================================================
+    // PAGE 3 — CONTENT CHECKED FOR PLAGIARISM
+    // =========================================================================
+    doc.addPage();
+
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(11);
     doc.setTextColor(30, 41, 59);
-    doc.text('Content Checked For Plagiarism', 15, 94);
+    doc.text('Content Checked For Plagiarism', 15, 20);
 
     doc.setDrawColor(226, 232, 240);
     doc.setLineWidth(0.3);
-    doc.line(15, 97, 195, 97);
+    doc.line(15, 23, 195, 23);
 
-    let currentY = 104;
+    let currentY = 30;
 
     // Split text into sentences using regex
     const sentences = text.match(/[^.!?]+[.!?]+(\s|$)/g) || [text];
@@ -1201,7 +1234,7 @@ export async function generatePlagiarismReport(data: PlagiarismReportData): Prom
     }
 
     // =========================================================================
-    // PAGE 3 — MATCHED SOURCES & CITATIONS
+    // PAGE 4 — MATCHED SOURCES & CITATIONS
     // =========================================================================
     doc.addPage();
     currentY = 25;
@@ -1223,55 +1256,62 @@ export async function generatePlagiarismReport(data: PlagiarismReportData): Prom
       doc.setTextColor(16, 185, 129); // green
       doc.text('No plagiarism found. Content is 100% original.', 15, currentY);
     } else {
+      let matchIdx = 1;
       for (const match of matches) {
-        if (currentY > 230) {
+        const snippet = `"${match.text}"`;
+        const snippetLines = doc.splitTextToSize(snippet, 160);
+        
+        // Calculate card height based on snippet line count
+        const cardH = 12 + snippetLines.length * 4.2 + 6;
+
+        if (currentY + cardH > 265) {
           doc.addPage();
           currentY = 25;
         }
 
-        // Draw a small red accent rect
-        doc.setFillColor(239, 68, 68);
-        doc.rect(15, currentY - 3, 2, 10, 'F');
+        // Draw card boundary box
+        doc.setDrawColor(226, 232, 240);
+        doc.setLineWidth(0.3);
+        doc.setFillColor(255, 255, 255);
+        doc.roundedRect(15, currentY, 170, cardH, 2, 2, 'FD');
 
+        // Grey Circle with Number
+        doc.setFillColor(241, 245, 249);
+        doc.circle(21, currentY + 6, 2.5, 'F');
         doc.setFont('helvetica', 'bold');
-        doc.setFontSize(9);
-        doc.setTextColor(239, 68, 68); // red
-        doc.text(`${match.matchPercentage}% Match — ${match.source}`, 20, currentY);
-        currentY += 4.2;
+        doc.setFontSize(8);
+        doc.setTextColor(100, 116, 139);
+        doc.text(String(matchIdx), 21, currentY + 7, { align: 'center' });
 
-        if (match.url) {
-          doc.setFont('helvetica', 'normal');
-          doc.setFontSize(8);
-          doc.setTextColor(59, 130, 246); // blue link
-          doc.text(match.url, 20, currentY);
-          currentY += 4.2;
-        }
+        // URL in blue/purple
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(8.5);
+        doc.setTextColor(124, 92, 252); // purple
+        const sourceUrl = match.url || match.source;
+        const truncatedUrl = sourceUrl.length > 70 ? sourceUrl.substring(0, 70) + '...' : sourceUrl;
+        doc.text(truncatedUrl, 26, currentY + 7);
 
+        // Match badge in red pill badge style
+        doc.setFillColor(254, 242, 242);
+        doc.roundedRect(160, currentY + 3.5, 20, 5, 1, 1, 'F');
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(7.5);
+        doc.setTextColor(239, 68, 68);
+        doc.text(`${match.matchPercentage}% MATCH`, 170, currentY + 7, { align: 'center' });
+
+        // Snippet text in muted color below URL
         doc.setFont('times', 'italic');
         doc.setFontSize(8.5);
         doc.setTextColor(100, 116, 139);
-        const snippetLines = doc.splitTextToSize(`"${match.text}"`, 170);
-        doc.text(snippetLines, 20, currentY);
-        currentY += snippetLines.length * 4.2 + 3;
+        doc.text(snippetLines, 21, currentY + 14);
 
-        // Render citations
-        const cleanName = match.source.replace(/^(Wikipedia — |Stanford |MIT Technology Review — )/i, '');
-        const actualUrl = match.url || 'https://contentguard.ai';
-        const apa = `${cleanName} Contributors. (2026). Web Content Analysis. Retrieved from ${actualUrl}`;
-        const mla = `"${cleanName} Contributors." ContentGuard Originality Archive, 2026, ${actualUrl}.`;
-
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(7.5);
-        doc.setTextColor(110, 110, 120);
-        const citationText = `APA: ${apa}\nMLA: ${mla}`;
-        const citationLines = doc.splitTextToSize(citationText, 170);
-        doc.text(citationLines, 20, currentY);
-        currentY += citationLines.length * 3.8 + 6;
+        currentY += cardH + 5;
+        matchIdx++;
       }
     }
 
     // =========================================================================
-    // PAGE 4 — VERIFIED ORIGINALITY CERTIFICATE & RECOMMENDATIONS
+    // PAGE 5 — VERIFIED ORIGINALITY CERTIFICATE & RECOMMENDATIONS
     // =========================================================================
     doc.addPage();
 
@@ -1402,4 +1442,3 @@ export async function generatePlagiarismReport(data: PlagiarismReportData): Prom
     throw error;
   }
 }
-

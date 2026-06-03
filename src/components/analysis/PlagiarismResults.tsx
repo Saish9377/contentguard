@@ -1,20 +1,24 @@
 'use client';
 
 import { useState, useMemo } from 'react';
+import dynamic from 'next/dynamic';
 import { 
   FileText, 
-  AlertTriangle, 
   CheckCircle2, 
-  Copy, 
-  Check, 
-  ExternalLink, 
   Download,
-  RefreshCw
+  ExternalLink,
+  ChevronRight
 } from 'lucide-react';
 import { FullAnalysisResult, PlagiarismMatch } from '@/types/analysis';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { generatePlagiarismReport } from '@/lib/pdf-generator';
+
+// Dynamically import other tabs to optimize performance and prevent bundle bloating
+const AITab = dynamic(() => import('./tabs/AITab'), { ssr: false });
+const GrammarTab = dynamic(() => import('./tabs/GrammarTab'), { ssr: false });
+const MetricsTab = dynamic(() => import('./tabs/MetricsTab'), { ssr: false });
+const ToneTab = dynamic(() => import('./tabs/ToneTab'), { ssr: false });
 
 interface PlagiarismResultsProps {
   result: FullAnalysisResult;
@@ -32,6 +36,7 @@ interface HighlightRange {
 
 export function PlagiarismResults({ result, onReset }: PlagiarismResultsProps) {
   const { plagiarism, text = '', writingMetrics } = result;
+  const [activeTab, setActiveTab] = useState<'ai' | 'plagiarism' | 'grammar' | 'metrics' | 'tone'>('plagiarism');
   const [isExporting, setIsExporting] = useState(false);
   const [hoveredMatchIndex, setHoveredMatchIndex] = useState<number | null>(null);
 
@@ -162,7 +167,7 @@ export function PlagiarismResults({ result, onReset }: PlagiarismResultsProps) {
         reportId: result.id,
         generatedAt: new Date(result.timestamp),
         
-        // Premium fields (dummy or fallback)
+        // Premium fields
         aiScore: result.aiDetection?.aiScore || 0,
         grammarScore: result.grammar?.grammarScore || 95,
         qualityScore: result.qualityScore?.overallScore || 90,
@@ -185,307 +190,376 @@ export function PlagiarismResults({ result, onReset }: PlagiarismResultsProps) {
   };
 
   // SVG parameters for Donut Chart
-  const r = 45;
-  const circ = 2 * Math.PI * r;
-  const strokeWidth = 10;
+  const r = 48;
+  const circ = 2 * Math.PI * r; // 301.6
   const valUnique = (metrics.unique / 100) * circ;
   const valPlagiarized = (metrics.similarity / 100) * circ;
 
   return (
     <div className="space-y-6">
-      {/* Top Header Card with Export Button */}
-      <div className="bg-bg-card border border-border-custom rounded-xl p-5 shadow-sm flex flex-col sm:flex-row justify-between items-center gap-4">
-        <div>
-          <h2 className="font-bold text-lg text-text-primary">Plagiarism Scan Results</h2>
-          <p className="text-xs text-text-muted">Detailed similarity analysis of your text</p>
+      
+      {/* 1. Results Header */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-xs font-bold text-emerald-400">
+            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+            ANALYSIS COMPLETE
+          </div>
+          <button
+            onClick={onReset}
+            className="px-4 py-2 border border-border-custom bg-transparent rounded-xl text-xs font-bold text-text-muted hover:text-text-primary hover:bg-bg-input transition-all cursor-pointer active:scale-95"
+          >
+            ← Scan New Content
+          </button>
         </div>
         
         {/* Export Button */}
         <button
           onClick={handleExportPDF}
           disabled={isExporting}
-          className="px-5 py-2.5 rounded-xl bg-accent-purple/10 border border-accent-purple/20 text-accent-light-purple hover:bg-accent-purple hover:text-text-primary transition-all duration-300 flex items-center justify-center gap-2 cursor-pointer font-bold w-full sm:w-auto active:scale-95 shadow-md shadow-premium-glow disabled:opacity-50 disabled:cursor-not-allowed"
+          className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-accent-purple to-accent-light-purple hover:shadow-[0_0_20px_rgba(124,92,252,0.3)] text-text-primary hover:text-white transition-all duration-300 flex items-center justify-center gap-2 cursor-pointer font-bold w-full sm:w-auto active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed shadow-md"
         >
           {isExporting ? (
             <>
-              <div className="w-4 h-4 border-2 border-accent-light-purple border-t-transparent rounded-full animate-spin mr-1" />
+              <div className="w-4 h-4 border-2 border-text-primary border-t-transparent rounded-full animate-spin mr-1" />
               Exporting...
             </>
           ) : (
             <>
               <Download className="w-4 h-4" />
-              Export Premium Report
+              Export Report
             </>
           )}
         </button>
       </div>
 
-      {/* 4 Stats Cards Side-by-Side */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        {/* Plagiarism card */}
-        <div className="bg-bg-card border border-border-custom rounded-2xl p-5 shadow-sm flex flex-col items-center justify-center text-center">
-          <span className="text-[10px] tracking-wider uppercase font-bold text-text-muted mb-1">Plagiarism</span>
-          <span className={cn(
-            "text-3xl font-extrabold",
-            metrics.similarity === 0 ? "text-emerald-500" : metrics.similarity > 10 ? "text-red-500" : "text-amber-500"
-          )}>
-            {metrics.similarity}%
-          </span>
-        </div>
-
-        {/* Exact Match card */}
-        <div className="bg-bg-card border border-border-custom rounded-2xl p-5 shadow-sm flex flex-col items-center justify-center text-center">
-          <span className="text-[10px] tracking-wider uppercase font-bold text-text-muted mb-1">Exact Match</span>
-          <span className="text-3xl font-extrabold text-red-500">
-            {metrics.exact}%
-          </span>
-        </div>
-
-        {/* Partial Match card */}
-        <div className="bg-bg-card border border-border-custom rounded-2xl p-5 shadow-sm flex flex-col items-center justify-center text-center">
-          <span className="text-[10px] tracking-wider uppercase font-bold text-text-muted mb-1">Partial Match</span>
-          <span className="text-3xl font-extrabold text-amber-500">
-            {metrics.partial}%
-          </span>
-        </div>
-
-        {/* Unique card */}
-        <div className="bg-bg-card border border-border-custom rounded-2xl p-5 shadow-sm flex flex-col items-center justify-center text-center">
-          <span className="text-[10px] tracking-wider uppercase font-bold text-text-muted mb-1">Unique</span>
-          <span className="text-3xl font-extrabold text-emerald-500">
-            {metrics.unique}%
-          </span>
-        </div>
-      </div>
-
-      {/* Main 2-Column Detail Display */}
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+      {/* 2. Main Score Card (Single unified dark card, border-radius: 16px) */}
+      <div className="bg-bg-card border border-border-custom rounded-2xl p-6 shadow-sm flex flex-col gap-6">
         
-        {/* Left Column: Interactive Document Text (3/5 Width) */}
-        <div className="lg:col-span-3 flex flex-col bg-bg-card border border-border-custom rounded-2xl p-5 shadow-sm min-h-[450px]">
-          <div className="flex items-center gap-2 mb-4 border-b border-border-custom/50 pb-3">
-            <FileText className="w-5 h-5 text-accent-purple" />
-            <h3 className="font-bold text-text-primary text-sm">Interactive Document Text</h3>
-            <span className="text-xs text-text-muted ml-auto font-medium">Highlighted matches from online sources</span>
+        {/* Top Row: 4 metric pills with vertical dividers */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-0 border-b border-border-custom/30 pb-6">
+          
+          {/* Plagiarism */}
+          <div className="flex items-center gap-3 px-2 md:px-6 md:border-r md:border-border-custom/20">
+            <span className="w-2 h-2 rounded-full bg-red-500 shrink-0" />
+            <div className="flex flex-col">
+              <span className="text-[10px] tracking-wider uppercase font-bold text-text-muted">Plagiarism</span>
+              <span className="text-2xl font-extrabold text-red-500">{metrics.similarity}%</span>
+            </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto max-h-[500px] pr-2 text-sm leading-relaxed text-text-primary whitespace-pre-wrap select-text font-serif">
-            {text ? (
-              highlightedSegments.map((segment, idx) => {
-                if (segment.type === 'text') {
-                  return <span key={idx}>{segment.text}</span>;
-                }
+          {/* Exact Match */}
+          <div className="flex items-center gap-3 px-2 md:px-6 md:border-r md:border-border-custom/20">
+            <span className="w-2 h-2 rounded-full bg-red-500 shrink-0" />
+            <div className="flex flex-col">
+              <span className="text-[10px] tracking-wider uppercase font-bold text-text-muted">Exact Match</span>
+              <span className="text-2xl font-extrabold text-red-500">{metrics.exact}%</span>
+            </div>
+          </div>
 
-                const isExact = segment.matchType === 'exact';
-                const sourceMatches = activeMatches.some(
-                  (m, matchIdx) => hoveredMatchIndex === matchIdx && segment.source?.includes(m.source)
-                );
+          {/* Partial Match */}
+          <div className="flex items-center gap-3 px-2 md:px-6 md:border-r md:border-border-custom/20">
+            <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0" />
+            <div className="flex flex-col">
+              <span className="text-[10px] tracking-wider uppercase font-bold text-text-muted">Partial Match</span>
+              <span className="text-2xl font-extrabold text-amber-500">{metrics.partial}%</span>
+            </div>
+          </div>
 
-                return (
-                  <span
-                    key={idx}
-                    className={cn(
-                      "relative cursor-pointer transition-all duration-150 rounded px-0.5 border-b-2 font-medium break-words",
-                      isExact
-                        ? sourceMatches
-                          ? "bg-red-500/30 text-red-900 dark:text-red-200 border-red-600 shadow-[0_0_8px_rgba(239,68,68,0.2)]"
-                          : "bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/40 hover:bg-red-500/20"
-                        : sourceMatches
-                          ? "bg-blue-500/30 text-blue-900 dark:text-blue-200 border-blue-600 shadow-[0_0_8px_rgba(59,130,246,0.2)]"
-                          : "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/40 hover:bg-blue-500/20"
-                    )}
-                    title={`${segment.matchPercentage}% match: ${segment.source}`}
-                  >
-                    {segment.text}
-                  </span>
-                );
-              })
-            ) : (
-              <p className="text-text-muted italic">No text provided for analysis.</p>
-            )}
+          {/* Unique */}
+          <div className="flex items-center gap-3 px-2 md:px-6">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+            <div className="flex flex-col">
+              <span className="text-[10px] tracking-wider uppercase font-bold text-text-muted">Unique</span>
+              <span className="text-2xl font-extrabold text-emerald-500">{metrics.unique}%</span>
+            </div>
           </div>
         </div>
 
-        {/* Right Column: Statistics & Sources (2/5 Width) */}
-        <div className="lg:col-span-2 space-y-6">
+        {/* Middle Row: Large donut on left, stats table on right */}
+        <div className="flex flex-col md:flex-row items-center gap-8 md:gap-12 py-2">
           
-          {/* Donut Chart & Detailed Side legend */}
-          <div className="bg-bg-card border border-border-custom rounded-2xl p-5 shadow-sm flex flex-col sm:flex-row items-center gap-6 justify-center">
-            
-            {/* SVG Donut Chart */}
-            <div className="relative flex items-center justify-center w-40 h-40 shrink-0">
-              <svg viewBox="0 0 120 120" className="w-full h-full transform -rotate-90">
-                {/* Background Ring */}
+          {/* Left Side: Big Donut Chart (250px) */}
+          <div className="relative flex items-center justify-center w-[220px] h-[220px] sm:w-[250px] sm:h-[250px] shrink-0">
+            <svg viewBox="0 0 120 120" className="w-full h-full transform -rotate-90">
+              {/* Background Ring */}
+              <circle
+                cx="60"
+                cy="60"
+                r={r}
+                className="stroke-zinc-100 dark:stroke-zinc-800/80"
+                strokeWidth="8"
+                fill="transparent"
+              />
+              
+              {metrics.similarity === 0 ? (
+                /* Full green ring when 0% plagiarism */
                 <circle
                   cx="60"
                   cy="60"
                   r={r}
-                  className="stroke-zinc-100 dark:stroke-zinc-800/80"
-                  strokeWidth={strokeWidth}
+                  className="stroke-emerald-500"
+                  strokeWidth="8"
                   fill="transparent"
                 />
-                
-                {/* Unique portion (Green) */}
-                {metrics.unique > 0 && (
-                  <circle
-                    cx="60"
-                    cy="60"
-                    r={r}
-                    className="stroke-emerald-500"
-                    strokeWidth={strokeWidth}
-                    fill="transparent"
-                    strokeDasharray={`${valUnique} ${circ - valUnique}`}
-                    strokeDashoffset={0}
-                    strokeLinecap="round"
-                  />
-                )}
+              ) : (
+                <>
+                  {/* Unique portion (Green) */}
+                  {metrics.unique > 0 && (
+                    <circle
+                      cx="60"
+                      cy="60"
+                      r={r}
+                      className="stroke-emerald-500"
+                      strokeWidth="8"
+                      fill="transparent"
+                      strokeDasharray={`${valUnique} ${circ - valUnique}`}
+                      strokeDashoffset="0"
+                      strokeLinecap="round"
+                    />
+                  )}
 
-                {/* Plagiarized portion (Red) */}
-                {metrics.similarity > 0 && (
-                  <circle
-                    cx="60"
-                    cy="60"
-                    r={r}
-                    className="stroke-red-500"
-                    strokeWidth={strokeWidth}
-                    fill="transparent"
-                    strokeDasharray={`${valPlagiarized} ${circ - valPlagiarized}`}
-                    strokeDashoffset={-valUnique}
-                    strokeLinecap="round"
-                  />
-                )}
-              </svg>
-              
-              {/* Central Text */}
-              <div className="absolute flex flex-col items-center justify-center text-center">
-                <span className="text-3xl font-extrabold text-text-primary">{metrics.similarity}%</span>
-                <span className="text-[10px] uppercase tracking-wider text-text-muted font-bold">Plagiarism</span>
-              </div>
-            </div>
-
-            {/* Legend Stats Table */}
-            <div className="flex-1 w-full space-y-3">
-              <div className="flex items-center justify-between text-xs border-b border-border-custom/50 pb-2">
-                <span className="flex items-center gap-2 font-semibold text-text-primary">
-                  <span className="w-2.5 h-2.5 rounded-full bg-red-500 shrink-0" />
-                  Exact Match
-                </span>
-                <span className="font-extrabold text-red-500 text-sm">{metrics.exact}%</span>
-              </div>
-              
-              <div className="flex items-center justify-between text-xs border-b border-border-custom/50 pb-2">
-                <span className="flex items-center gap-2 font-semibold text-text-primary">
-                  <span className="w-2.5 h-2.5 rounded-full bg-blue-500 shrink-0" />
-                  Partial Match
-                </span>
-                <span className="font-extrabold text-blue-500 text-sm">{metrics.partial}%</span>
-              </div>
-              
-              <div className="flex items-center justify-between text-xs pb-1">
-                <span className="flex items-center gap-2 font-semibold text-text-primary">
-                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0" />
-                  Unique
-                </span>
-                <span className="font-black text-emerald-500 text-lg">{metrics.unique}%</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Document Stats Row */}
-          <div className="bg-bg-card border border-border-custom rounded-2xl p-5 shadow-sm space-y-3">
-            <h4 className="font-bold text-xs text-text-muted uppercase tracking-wider border-b border-border-custom/50 pb-2">Document Statistics</h4>
+                  {/* Plagiarized portion (Red) */}
+                  {metrics.similarity > 0 && (
+                    <circle
+                      cx="60"
+                      cy="60"
+                      r={r}
+                      className="stroke-red-500"
+                      strokeWidth="8"
+                      fill="transparent"
+                      strokeDasharray={`${valPlagiarized} ${circ - valPlagiarized}`}
+                      strokeDashoffset={-valUnique}
+                      strokeLinecap="round"
+                    />
+                  )}
+                </>
+              )}
+            </svg>
             
-            <div className="grid grid-cols-2 gap-4 text-xs">
-              <div className="flex justify-between border-b border-border-custom/30 pb-1.5">
-                <span className="text-text-muted font-medium">Words:</span>
-                <span className="font-bold text-text-primary">{totalWords}</span>
-              </div>
-              <div className="flex justify-between border-b border-border-custom/30 pb-1.5">
-                <span className="text-text-muted font-medium">Characters:</span>
-                <span className="font-bold text-text-primary">{totalChars}</span>
-              </div>
-              <div className="flex justify-between border-b border-border-custom/30 pb-1.5">
-                <span className="text-text-muted font-medium">Sentences:</span>
-                <span className="font-bold text-text-primary">{totalSentences}</span>
-              </div>
-              <div className="flex justify-between border-b border-border-custom/30 pb-1.5">
-                <span className="text-text-muted font-medium">Paragraphs:</span>
-                <span className="font-bold text-text-primary">{totalParagraphs}</span>
-              </div>
-              <div className="flex justify-between col-span-2 sm:col-span-1 border-b border-border-custom/30 pb-1.5">
-                <span className="text-text-muted font-medium">Read Time:</span>
-                <span className="font-bold text-text-primary">{readTime} minute{readTime > 1 ? 's' : ''}</span>
-              </div>
-              <div className="flex justify-between col-span-2 sm:col-span-1 border-b border-border-custom/30 pb-1.5">
-                <span className="text-text-muted font-medium">Speak Time:</span>
-                <span className="font-bold text-text-primary">{speakTime} minute{speakTime > 1 ? 's' : ''}</span>
-              </div>
+            {/* Center percentage label */}
+            <div className="absolute flex flex-col items-center justify-center text-center">
+              <span className={cn(
+                "text-4xl font-extrabold transition-colors duration-200",
+                metrics.similarity === 0 ? "text-emerald-500" : "text-text-primary"
+              )}>
+                {metrics.similarity}%
+              </span>
+              <span className="text-[10px] uppercase tracking-wider text-text-muted font-bold mt-1">Plagiarism</span>
             </div>
           </div>
 
-          {/* Matched Sources Section */}
-          <div className="bg-bg-card border border-border-custom rounded-2xl p-5 shadow-sm space-y-4">
-            <h3 className="font-bold text-text-primary text-sm border-b border-border-custom/50 pb-3">Matched Sources</h3>
-
-            {activeMatches.length > 0 ? (
-              <div className="space-y-4 max-h-[380px] overflow-y-auto pr-1">
-                {activeMatches.map((match, index) => {
-                  const isHovered = hoveredMatchIndex === index;
-
-                  return (
-                    <div 
-                      key={index} 
-                      onMouseEnter={() => setHoveredMatchIndex(index)}
-                      onMouseLeave={() => setHoveredMatchIndex(null)}
-                      className={cn(
-                        "p-4 rounded-xl border transition-all duration-200 space-y-2",
-                        isHovered
-                          ? "border-accent-purple/60 bg-accent-purple/5 shadow-md shadow-premium-glow/5"
-                          : "border-border-custom bg-bg-primary/20 hover:border-zinc-300 dark:hover:border-zinc-800"
-                      )}
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <span className="text-[10px] text-text-muted font-semibold block mb-0.5">Source #{index + 1}</span>
-                          {match.url ? (
-                            <a 
-                              href={match.url} 
-                              target="_blank" 
-                              rel="noopener noreferrer"
-                              className="text-xs font-bold text-text-primary hover:text-accent-purple inline-flex items-center gap-1.5 hover:underline break-all truncate max-w-full"
-                            >
-                              {match.url.replace(/https?:\/\/(www\.)?/, '')}
-                              <ExternalLink className="w-3 h-3 shrink-0" />
-                            </a>
-                          ) : (
-                            <p className="text-xs font-bold text-text-primary truncate">{match.source}</p>
-                          )}
-                        </div>
-                        <div className="shrink-0">
-                          <span className="text-[10px] font-extrabold text-red-500 bg-red-500/10 px-2.5 py-1 rounded-full border border-red-500/20">
-                            {match.matchPercentage}%
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Matched Text Snippet */}
-                      <p className="text-xs italic text-text-muted bg-bg-input/50 p-2.5 rounded border border-border-custom/50 font-serif leading-relaxed">
-                        "{match.text}"
-                      </p>
-                    </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className="flex items-center gap-3 p-4 bg-emerald-500/5 border border-emerald-500/10 rounded-xl">
-                <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0" />
-                <p className="text-xs font-semibold text-emerald-500">✅ No plagiarism found. Content is 100% original.</p>
-              </div>
-            )}
+          {/* Right Side: Document Stats Table (clean, borderless, alternating bg) */}
+          <div className="flex-1 w-full overflow-hidden">
+            <table className="w-full text-sm">
+              <tbody>
+                {[
+                  { label: 'Words', val: totalWords },
+                  { label: 'Characters', val: totalChars.toLocaleString() },
+                  { label: 'Sentences', val: totalSentences },
+                  { label: 'Paragraphs', val: totalParagraphs },
+                  { label: 'Read Time', val: `${readTime} min(s)` },
+                  { label: 'Speak Time', val: `${speakTime} min(s)` }
+                ].map((row, idx) => (
+                  <tr 
+                    key={idx} 
+                    className={cn(
+                      "transition-colors duration-150",
+                      idx % 2 === 0 ? "bg-bg-input/25 dark:bg-bg-input/10" : "bg-transparent"
+                    )}
+                  >
+                    <td className="px-4 py-2.5 text-text-muted font-medium">{row.label}</td>
+                    <td className="px-4 py-2.5 text-right text-text-primary font-bold">{row.val}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-          
         </div>
       </div>
+
+      {/* 3. Tabs menu below card */}
+      <div className="flex gap-1 border-b border-border-custom pb-px overflow-x-auto whitespace-nowrap scrollbar-none">
+        {[
+          { id: 'ai', label: 'AI Detection' },
+          { id: 'plagiarism', label: 'Plagiarism' },
+          { id: 'grammar', label: 'Grammar' },
+          { id: 'metrics', label: 'Metrics & Structure' },
+          { id: 'tone', label: 'Tone Analysis' }
+        ].map(tab => {
+          const isActive = activeTab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id as typeof activeTab)}
+              className={cn(
+                "flex items-center gap-1.5 px-5 py-3 border-b-2 text-xs font-semibold transition-all focus:outline-none -mb-px cursor-pointer",
+                isActive
+                  ? "border-accent-purple text-accent-light-purple"
+                  : "border-transparent text-text-muted hover:text-text-primary"
+              )}
+            >
+              {tab.label}
+              {tab.id === 'plagiarism' && (
+                <span className="text-[10px] text-emerald-500 font-bold ml-1">✓ active</span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* 4. Tab Panels */}
+      <div className="min-h-[300px]">
+        {/* Render other tabs dynamically */}
+        {activeTab === 'ai' && (
+          <AITab aiDetection={result.aiDetection} readability={result.readability} text={text} />
+        )}
+        
+        {activeTab === 'grammar' && (
+          <GrammarTab grammar={result.grammar} />
+        )}
+        
+        {activeTab === 'metrics' && (
+          <MetricsTab
+            readability={result.readability}
+            essayStructure={result.essayStructure}
+            writingMetrics={result.writingMetrics}
+            qualityScore={result.qualityScore}
+          />
+        )}
+        
+        {activeTab === 'tone' && result.tone && (
+          <ToneTab toneResult={result.tone} />
+        )}
+
+        {/* Custom Plagiarism Tab Redesign */}
+        {activeTab === 'plagiarism' && (
+          <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+            
+            {/* Left: Interactive Document Text */}
+            <div className="lg:col-span-3 flex flex-col bg-bg-card border border-border-custom rounded-2xl p-5 shadow-sm min-h-[450px]">
+              <div className="flex items-center gap-2 mb-4 border-b border-border-custom/50 pb-3">
+                <FileText className="w-5 h-5 text-accent-purple" />
+                <div>
+                  <h3 className="font-bold text-text-primary text-sm">Interactive Document Text</h3>
+                  <p className="text-[10px] text-text-muted font-medium">Hover matched text to view sources</p>
+                </div>
+              </div>
+
+              <div className="flex-1 overflow-y-auto max-h-[500px] pr-2 text-sm leading-relaxed text-text-primary whitespace-pre-wrap select-text font-sans antialiased">
+                {text ? (
+                  highlightedSegments.map((segment, idx) => {
+                    if (segment.type === 'text') {
+                      return <span key={idx}>{segment.text}</span>;
+                    }
+
+                    const isExact = segment.matchType === 'exact';
+                    const sourceMatches = activeMatches.some(
+                      (m, matchIdx) => hoveredMatchIndex === matchIdx && segment.source?.includes(m.source)
+                    );
+
+                    return (
+                      <span
+                        key={idx}
+                        className={cn(
+                          "relative cursor-pointer transition-all duration-150 rounded-t px-0.5 font-medium break-words border-b-2",
+                          isExact
+                            ? sourceMatches
+                              ? "border-red-500 bg-red-500/20 text-red-900 dark:text-red-200 shadow-[0_2px_8px_rgba(239,68,68,0.1)]"
+                              : "border-red-500/50 bg-red-500/5 text-red-600 dark:text-red-400 hover:bg-red-500/15"
+                            : sourceMatches
+                              ? "border-orange-500 bg-orange-500/20 text-orange-900 dark:text-orange-200 shadow-[0_2px_8px_rgba(249,115,22,0.1)]"
+                              : "border-orange-500/50 bg-orange-500/5 text-orange-600 dark:text-orange-400 hover:bg-orange-500/15"
+                        )}
+                        title={`${segment.matchPercentage}% match: ${segment.source}`}
+                      >
+                        {segment.text}
+                      </span>
+                    );
+                  })
+                ) : (
+                  <p className="text-text-muted italic">No text provided for analysis.</p>
+                )}
+              </div>
+            </div>
+
+            {/* Right: Matched Sources Section */}
+            <div className="lg:col-span-2 space-y-4">
+              <div className="bg-bg-card border border-border-custom rounded-2xl p-5 shadow-sm space-y-4">
+                <h3 className="font-bold text-text-primary text-sm">Matched Sources & Academic Citations</h3>
+
+                {activeMatches.length > 0 ? (
+                  <div className="space-y-3 max-h-[460px] overflow-y-auto pr-1">
+                    {activeMatches.map((match, index) => {
+                      const isHovered = hoveredMatchIndex === index;
+
+                      return (
+                        <div 
+                          key={index} 
+                          onMouseEnter={() => setHoveredMatchIndex(index)}
+                          onMouseLeave={() => setHoveredMatchIndex(null)}
+                          className={cn(
+                            "p-4 rounded-xl border bg-bg-card transition-all duration-200 space-y-2.5",
+                            isHovered
+                              ? "border-accent-purple/60 bg-accent-purple/5 shadow-md shadow-premium-glow/5"
+                              : "border-border-custom hover:border-zinc-300 dark:hover:border-zinc-800"
+                          )}
+                        >
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="flex items-center gap-2 min-w-0">
+                              {/* Grey Circle with Number */}
+                              <span className="w-5 h-5 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-[10px] font-bold text-text-muted shrink-0">
+                                {index + 1}
+                              </span>
+                              
+                              {match.url ? (
+                                <a 
+                                  href={match.url} 
+                                  target="_blank" 
+                                  rel="noopener noreferrer"
+                                  className="text-xs font-semibold text-accent-purple hover:underline flex items-center gap-1.5 truncate max-w-[140px] sm:max-w-[200px]"
+                                >
+                                  {match.url.replace(/https?:\/\/(www\.)?/, '')}
+                                  <ExternalLink className="w-3 h-3 shrink-0" />
+                                </a>
+                              ) : (
+                                <span className="text-xs font-semibold text-text-primary truncate">
+                                  {match.source}
+                                </span>
+                              )}
+                            </div>
+                            
+                            {/* Match percentage pill badge */}
+                            <span className="text-[10px] font-extrabold text-red-500 bg-red-500/10 px-2 py-0.5 rounded-full border border-red-500/20 shrink-0">
+                              {match.matchPercentage}% MATCH
+                            </span>
+                          </div>
+
+                          {/* Matched Text Snippet */}
+                          <p className="text-xs italic text-text-muted bg-bg-input/30 p-2.5 rounded border border-border-custom/30 leading-relaxed font-serif">
+                            "{match.text}"
+                          </p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center p-8 bg-emerald-500/5 border border-emerald-500/10 rounded-xl text-center">
+                    <span className="w-12 h-12 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-500 mb-3">
+                      <CheckCircle2 className="w-6 h-6 text-emerald-500" />
+                    </span>
+                    <p className="text-sm font-semibold text-emerald-500">
+                      ✅ No plagiarism detected. Your content is 100% original.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+          </div>
+        )}
+      </div>
+
     </div>
   );
 }
