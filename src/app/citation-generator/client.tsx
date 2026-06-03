@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { motion } from 'framer-motion';
-import { Quote, Copy, Check, Plus, Trash2 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Quote, Copy, Check, Plus, Trash2, ChevronDown } from 'lucide-react';
 import { CitationSource, CitationStyle } from '@/types/citation';
 import { generateAPA, generateMLA, generateHarvard, generateChicago } from '@/lib/citation/generators';
 import { AdSlot } from '@/components/layout/AdSlot';
@@ -32,10 +32,18 @@ const STYLES: { value: CitationStyle; label: string }[] = [
   { value: 'chicago', label: 'Chicago' },
 ];
 
+const SOURCE_TYPES = [
+  { value: 'book', label: 'Book' },
+  { value: 'journal', label: 'Journal Article' },
+  { value: 'website', label: 'Website' },
+  { value: 'conference', label: 'Conference Paper' },
+];
+
 export function CitationClient() {
   const [source, setSource] = useState<CitationSource>({ ...defaultSource });
   const [activeStyle, setActiveStyle] = useState<CitationStyle>('apa');
   const [copiedStyle, setCopiedStyle] = useState<string | null>(null);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
   const citations = useMemo(() => {
     if (!source.title || source.authors.every(a => !a.trim())) return null;
@@ -101,18 +109,57 @@ export function CitationClient() {
           <h2 className="font-bold text-lg mb-5 text-text-primary">Source Details</h2>
 
           {/* Source Type */}
-          <div className="mb-4">
+          <div className="relative mb-4">
             <label className="block text-sm font-semibold text-text-primary/80 mb-1.5">Source Type</label>
-            <select
-              value={source.type}
-              onChange={e => updateField('type', e.target.value)}
-              className="w-full px-3.5 py-2.5 bg-bg-input border border-border-custom rounded-xl text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-accent-purple/30 focus:border-accent-purple transition-all"
+            <button
+              type="button"
+              onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+              className="w-full flex items-center justify-between px-3.5 py-2.5 bg-bg-input border border-border-custom rounded-xl text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-accent-purple/30 focus:border-accent-purple transition-all cursor-pointer"
             >
-              <option value="book" className="bg-bg-card text-text-primary">Book</option>
-              <option value="journal" className="bg-bg-card text-text-primary">Journal Article</option>
-              <option value="website" className="bg-bg-card text-text-primary">Website</option>
-              <option value="conference" className="bg-bg-card text-text-primary">Conference Paper</option>
-            </select>
+              <span>{SOURCE_TYPES.find(t => t.value === source.type)?.label || 'Book'}</span>
+              <ChevronDown className={`w-4 h-4 text-text-muted transition-transform duration-200 ${isDropdownOpen ? 'rotate-180' : ''}`} />
+            </button>
+
+            <AnimatePresence>
+              {isDropdownOpen && (
+                <>
+                  {/* Backdrop */}
+                  <div className="fixed inset-0 z-10" onClick={() => setIsDropdownOpen(false)} />
+                  
+                  <motion.div
+                    initial={{ opacity: 0, y: -8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -8 }}
+                    transition={{ duration: 0.15, ease: 'easeOut' }}
+                    className="absolute left-0 right-0 mt-2 z-20 bg-bg-card border border-border-custom rounded-xl shadow-premium-glow overflow-hidden"
+                  >
+                    <div className="p-1">
+                      {SOURCE_TYPES.map(option => {
+                        const isSelected = option.value === source.type;
+                        return (
+                          <button
+                            key={option.value}
+                            type="button"
+                            onClick={() => {
+                              updateField('type', option.value);
+                              setIsDropdownOpen(false);
+                            }}
+                            className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm text-left transition-all cursor-pointer ${
+                              isSelected
+                                ? 'bg-accent-purple/10 text-accent-light-purple font-semibold'
+                                : 'text-text-muted hover:text-text-primary hover:bg-bg-input'
+                            }`}
+                          >
+                            <span>{option.label}</span>
+                            {isSelected && <Check className="w-4 h-4 text-accent-light-purple" />}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </motion.div>
+                </>
+              )}
+            </AnimatePresence>
           </div>
 
           {/* Authors */}
