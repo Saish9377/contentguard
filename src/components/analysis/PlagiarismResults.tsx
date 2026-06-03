@@ -1,18 +1,57 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import { 
   FileText, 
   CheckCircle2, 
   Download,
   ExternalLink,
-  ChevronRight
+  ChevronRight,
+  Loader2
 } from 'lucide-react';
 import { FullAnalysisResult, PlagiarismMatch } from '@/types/analysis';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { generatePlagiarismReport } from '@/lib/pdf-generator';
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
+
+// Custom Count-Up Animation Hook supporting prefers-reduced-motion
+function useCountUp(endValue: number, duration: number = 600) {
+  const [count, setCount] = useState(0);
+  const prefersReducedMotion = useReducedMotion();
+
+  useEffect(() => {
+    if (prefersReducedMotion) {
+      setCount(endValue);
+      return;
+    }
+
+    let startTime: number | null = null;
+    const startValue = 0;
+
+    const animate = (timestamp: number) => {
+      if (!startTime) startTime = timestamp;
+      const elapsed = timestamp - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      
+      // Quadratic ease-out: f(t) = t * (2 - t)
+      const easeProgress = progress * (2 - progress);
+      
+      const currentValue = Math.round(startValue + easeProgress * (endValue - startValue));
+      setCount(currentValue);
+
+      if (progress < 1) {
+        requestAnimationFrame(animate);
+      }
+    };
+
+    const animId = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(animId);
+  }, [endValue, duration, prefersReducedMotion]);
+
+  return count;
+}
 
 // Dynamically import other tabs to optimize performance and prevent bundle bloating
 const AITab = dynamic(() => import('./tabs/AITab'), { ssr: false });
@@ -37,8 +76,9 @@ interface HighlightRange {
 export function PlagiarismResults({ result, onReset }: PlagiarismResultsProps) {
   const { plagiarism, text = '', writingMetrics } = result;
   const [activeTab, setActiveTab] = useState<'ai' | 'plagiarism' | 'grammar' | 'metrics' | 'tone'>('plagiarism');
-  const [isExporting, setIsExporting] = useState(false);
+  const [exportStatus, setExportStatus] = useState<'idle' | 'loading' | 'success'>('idle');
   const [hoveredMatchIndex, setHoveredMatchIndex] = useState<number | null>(null);
+  const prefersReducedMotion = useReducedMotion();
 
   const totalWords = writingMetrics.wordCount || 1;
   const totalChars = writingMetrics.characterCount || 0;
@@ -74,6 +114,11 @@ export function PlagiarismResults({ result, onReset }: PlagiarismResultsProps) {
       unique
     };
   }, [activeMatches, totalWords, plagiarism.similarityScore, plagiarism.originalityScore]);
+
+  const animatedSimilarity = useCountUp(metrics.similarity);
+  const animatedExact = useCountUp(metrics.exact);
+  const animatedPartial = useCountUp(metrics.partial);
+  const animatedUnique = useCountUp(metrics.unique);
 
   // 3. Highlighted ranges (merging overlaps for rendering document text)
   const highlightedSegments = useMemo(() => {
@@ -146,7 +191,7 @@ export function PlagiarismResults({ result, onReset }: PlagiarismResultsProps) {
 
   // 4. Export Plagiarism Report PDF
   const handleExportPDF = async () => {
-    setIsExporting(true);
+    setExportStatus('loading');
     try {
       const plagiarismReportData = {
         text,
@@ -179,13 +224,24 @@ export function PlagiarismResults({ result, onReset }: PlagiarismResultsProps) {
         grammarErrors: result.grammar?.errorCount || 0,
         plagiarismMatches: activeMatches.length
       };
-      await generatePlagiarismReport(plagiarismReportData);
+      
+      // Enforce minimum 1.5s visual spinner duration
+      await Promise.all([
+        generatePlagiarismReport(plagiarismReportData),
+        new Promise(resolve => setTimeout(resolve, 1500))
+      ]);
+      
+      setExportStatus('success');
       toast.success('Plagiarism report downloaded successfully!');
+      
+      // Reset back to idle after 3s
+      setTimeout(() => {
+        setExportStatus('idle');
+      }, 3000);
     } catch (err) {
       console.error('Failed to generate plagiarism report:', err);
       toast.error('Failed to export plagiarism report.');
-    } finally {
-      setIsExporting(false);
+      setExportStatus('idle');
     }
   };
 
@@ -201,10 +257,21 @@ export function PlagiarismResults({ result, onReset }: PlagiarismResultsProps) {
       {/* 1. Results Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div className="flex flex-wrap items-center gap-3">
-          <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-xs font-bold text-emerald-400">
-            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+          <motion.div
+            initial={prefersReducedMotion ? {} : { y: -20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ duration: 0.35, ease: 'easeOut' }}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-xs font-bold text-emerald-400"
+          >
+            <motion.div
+              initial={prefersReducedMotion ? {} : { rotateY: 90 }}
+              animate={{ rotateY: 0 }}
+              transition={{ duration: 0.4, delay: 0.1, ease: 'easeOut' }}
+            >
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+            </motion.div>
             ANALYSIS COMPLETE
-          </div>
+          </motion.div>
           <button
             onClick={onReset}
             className="px-4 py-2 border border-border-custom bg-transparent rounded-xl text-xs font-bold text-text-muted hover:text-text-primary hover:bg-bg-input transition-all cursor-pointer active:scale-95"
@@ -216,65 +283,130 @@ export function PlagiarismResults({ result, onReset }: PlagiarismResultsProps) {
         {/* Export Button */}
         <button
           onClick={handleExportPDF}
-          disabled={isExporting}
-          className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-accent-purple to-accent-light-purple hover:shadow-[0_0_20px_rgba(124,92,252,0.3)] text-text-primary hover:text-white transition-all duration-300 flex items-center justify-center gap-2 cursor-pointer font-bold w-full sm:w-auto active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed shadow-md"
+          disabled={exportStatus !== 'idle'}
+          className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-accent-purple to-accent-light-purple hover:shadow-[0_0_20px_rgba(124,92,252,0.3)] text-text-primary hover:text-white transition-all duration-300 flex items-center justify-center gap-2 cursor-pointer font-bold w-full sm:w-auto active:scale-95 disabled:opacity-85 disabled:cursor-not-allowed shadow-md overflow-hidden relative min-w-[170px] h-[42px]"
         >
-          {isExporting ? (
-            <>
-              <div className="w-4 h-4 border-2 border-text-primary border-t-transparent rounded-full animate-spin mr-1" />
-              Exporting...
-            </>
-          ) : (
-            <>
-              <Download className="w-4 h-4" />
-              Export Report
-            </>
-          )}
+          <AnimatePresence mode="wait">
+            {exportStatus === 'loading' ? (
+              <motion.span
+                key="loading"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.2 }}
+                className="flex items-center gap-2 justify-center w-full"
+              >
+                <Loader2 className="w-4 h-4 animate-spin shrink-0" />
+                Exporting...
+              </motion.span>
+            ) : exportStatus === 'success' ? (
+              <motion.span
+                key="success"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.2 }}
+                className="flex items-center gap-2 text-emerald-400 justify-center w-full font-bold"
+              >
+                <CheckCircle2 className="w-4 h-4 shrink-0" />
+                Report Downloaded!
+              </motion.span>
+            ) : (
+              <motion.span
+                key="idle"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.2 }}
+                className="flex items-center gap-2 justify-center w-full"
+              >
+                <Download className="w-4 h-4 shrink-0" />
+                Export Report
+              </motion.span>
+            )}
+          </AnimatePresence>
         </button>
       </div>
 
       {/* 2. Main Score Card (Single unified dark card, border-radius: 16px) */}
       <div className="bg-bg-card border border-border-custom rounded-2xl p-6 shadow-sm flex flex-col gap-6">
         
-        {/* Top Row: 4 metric pills with vertical dividers */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-0 border-b border-border-custom/30 pb-6">
+        {/* Top Row: 4 metric pills with vertical dividers (Staggered Stlide-Up) */}
+        <motion.div
+          variants={{
+            hidden: { opacity: 0 },
+            show: {
+              opacity: 1,
+              transition: {
+                staggerChildren: prefersReducedMotion ? 0 : 0.1
+              }
+            }
+          }}
+          initial="hidden"
+          animate="show"
+          className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-0 border-b border-border-custom/30 pb-6"
+        >
           
           {/* Plagiarism */}
-          <div className="flex items-center gap-3 px-2 md:px-6 md:border-r md:border-border-custom/20">
+          <motion.div
+            variants={{
+              hidden: { y: prefersReducedMotion ? 0 : 16, opacity: 0 },
+              show: { y: 0, opacity: 1, transition: { type: 'spring', stiffness: 300, damping: 25 } }
+            }}
+            className="flex items-center gap-3 px-2 md:px-6 md:border-r md:border-border-custom/20"
+          >
             <span className="w-2 h-2 rounded-full bg-red-500 shrink-0" />
             <div className="flex flex-col">
               <span className="text-[10px] tracking-wider uppercase font-bold text-text-muted">Plagiarism</span>
-              <span className="text-2xl font-extrabold text-red-500">{metrics.similarity}%</span>
+              <span className="text-2xl font-extrabold text-red-500">{animatedSimilarity}%</span>
             </div>
-          </div>
+          </motion.div>
 
           {/* Exact Match */}
-          <div className="flex items-center gap-3 px-2 md:px-6 md:border-r md:border-border-custom/20">
+          <motion.div
+            variants={{
+              hidden: { y: prefersReducedMotion ? 0 : 16, opacity: 0 },
+              show: { y: 0, opacity: 1, transition: { type: 'spring', stiffness: 300, damping: 25 } }
+            }}
+            className="flex items-center gap-3 px-2 md:px-6 md:border-r md:border-border-custom/20"
+          >
             <span className="w-2 h-2 rounded-full bg-red-500 shrink-0" />
             <div className="flex flex-col">
               <span className="text-[10px] tracking-wider uppercase font-bold text-text-muted">Exact Match</span>
-              <span className="text-2xl font-extrabold text-red-500">{metrics.exact}%</span>
+              <span className="text-2xl font-extrabold text-red-500">{animatedExact}%</span>
             </div>
-          </div>
+          </motion.div>
 
           {/* Partial Match */}
-          <div className="flex items-center gap-3 px-2 md:px-6 md:border-r md:border-border-custom/20">
+          <motion.div
+            variants={{
+              hidden: { y: prefersReducedMotion ? 0 : 16, opacity: 0 },
+              show: { y: 0, opacity: 1, transition: { type: 'spring', stiffness: 300, damping: 25 } }
+            }}
+            className="flex items-center gap-3 px-2 md:px-6 md:border-r md:border-border-custom/20"
+          >
             <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0" />
             <div className="flex flex-col">
               <span className="text-[10px] tracking-wider uppercase font-bold text-text-muted">Partial Match</span>
-              <span className="text-2xl font-extrabold text-amber-500">{metrics.partial}%</span>
+              <span className="text-2xl font-extrabold text-amber-500">{animatedPartial}%</span>
             </div>
-          </div>
+          </motion.div>
 
           {/* Unique */}
-          <div className="flex items-center gap-3 px-2 md:px-6">
+          <motion.div
+            variants={{
+              hidden: { y: prefersReducedMotion ? 0 : 16, opacity: 0 },
+              show: { y: 0, opacity: 1, transition: { type: 'spring', stiffness: 300, damping: 25 } }
+            }}
+            className="flex items-center gap-3 px-2 md:px-6"
+          >
             <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
             <div className="flex flex-col">
               <span className="text-[10px] tracking-wider uppercase font-bold text-text-muted">Unique</span>
-              <span className="text-2xl font-extrabold text-emerald-500">{metrics.unique}%</span>
+              <span className="text-2xl font-extrabold text-emerald-500">{animatedUnique}%</span>
             </div>
-          </div>
-        </div>
+          </motion.div>
+        </motion.div>
 
         {/* Middle Row: Large donut on left, stats table on right */}
         <div className="flex flex-col md:flex-row items-center gap-8 md:gap-12 py-2">
@@ -288,32 +420,37 @@ export function PlagiarismResults({ result, onReset }: PlagiarismResultsProps) {
                 cy="60"
                 r={r}
                 className="stroke-zinc-100 dark:stroke-zinc-800/80"
-                strokeWidth="8"
+                strokeWidth="12"
                 fill="transparent"
               />
               
               {metrics.similarity === 0 ? (
                 /* Full green ring when 0% plagiarism */
-                <circle
+                <motion.circle
                   cx="60"
                   cy="60"
                   r={r}
                   className="stroke-emerald-500"
-                  strokeWidth="8"
+                  strokeWidth="12"
                   fill="transparent"
+                  initial={prefersReducedMotion ? {} : { strokeDasharray: `0 ${circ}` }}
+                  animate={{ strokeDasharray: `${circ} 0` }}
+                  transition={{ duration: 1, ease: 'easeOut' }}
                 />
               ) : (
                 <>
                   {/* Unique portion (Green) */}
                   {metrics.unique > 0 && (
-                    <circle
+                    <motion.circle
                       cx="60"
                       cy="60"
                       r={r}
                       className="stroke-emerald-500"
-                      strokeWidth="8"
+                      strokeWidth="12"
                       fill="transparent"
-                      strokeDasharray={`${valUnique} ${circ - valUnique}`}
+                      initial={prefersReducedMotion ? {} : { strokeDasharray: `0 ${circ}` }}
+                      animate={{ strokeDasharray: `${valUnique} ${circ - valUnique}` }}
+                      transition={{ duration: 1, ease: 'easeOut' }}
                       strokeDashoffset="0"
                       strokeLinecap="round"
                     />
@@ -321,14 +458,16 @@ export function PlagiarismResults({ result, onReset }: PlagiarismResultsProps) {
 
                   {/* Plagiarized portion (Red) */}
                   {metrics.similarity > 0 && (
-                    <circle
+                    <motion.circle
                       cx="60"
                       cy="60"
                       r={r}
                       className="stroke-red-500"
-                      strokeWidth="8"
+                      strokeWidth="12"
                       fill="transparent"
-                      strokeDasharray={`${valPlagiarized} ${circ - valPlagiarized}`}
+                      initial={prefersReducedMotion ? {} : { strokeDasharray: `0 ${circ}` }}
+                      animate={{ strokeDasharray: `${valPlagiarized} ${circ - valPlagiarized}` }}
+                      transition={{ duration: 1, ease: 'easeOut' }}
                       strokeDashoffset={-valUnique}
                       strokeLinecap="round"
                     />
@@ -489,15 +628,32 @@ export function PlagiarismResults({ result, onReset }: PlagiarismResultsProps) {
                 <h3 className="font-bold text-text-primary text-sm">Matched Sources & Academic Citations</h3>
 
                 {activeMatches.length > 0 ? (
-                  <div className="space-y-3 max-h-[460px] overflow-y-auto pr-1">
+                  <motion.div
+                    variants={{
+                      hidden: { opacity: 0 },
+                      show: {
+                        opacity: 1,
+                        transition: {
+                          staggerChildren: prefersReducedMotion ? 0 : 0.08
+                        }
+                      }
+                    }}
+                    initial="hidden"
+                    animate="show"
+                    className="space-y-3 max-h-[460px] overflow-y-auto pr-1"
+                  >
                     {activeMatches.map((match, index) => {
                       const isHovered = hoveredMatchIndex === index;
 
                       return (
-                        <div 
+                        <motion.div 
                           key={index} 
                           onMouseEnter={() => setHoveredMatchIndex(index)}
                           onMouseLeave={() => setHoveredMatchIndex(null)}
+                          variants={{
+                            hidden: { x: prefersReducedMotion ? 0 : -20, opacity: 0 },
+                            show: { x: 0, opacity: 1, transition: { type: 'spring', stiffness: 300, damping: 25 } }
+                          }}
                           className={cn(
                             "p-4 rounded-xl border bg-bg-card transition-all duration-200 space-y-2.5",
                             isHovered
@@ -539,10 +695,10 @@ export function PlagiarismResults({ result, onReset }: PlagiarismResultsProps) {
                           <p className="text-xs italic text-text-muted bg-bg-input/30 p-2.5 rounded border border-border-custom/30 leading-relaxed font-serif">
                             "{match.text}"
                           </p>
-                        </div>
+                        </motion.div>
                       );
                     })}
-                  </div>
+                  </motion.div>
                 ) : (
                   <div className="flex flex-col items-center justify-center p-8 bg-emerald-500/5 border border-emerald-500/10 rounded-xl text-center">
                     <span className="w-12 h-12 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-500 mb-3">

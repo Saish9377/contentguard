@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Search, Zap, ShieldAlert, Download } from 'lucide-react';
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
+import { Search, Zap, ShieldAlert, Download, Loader2, CheckCircle2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { FileUpload } from '@/components/analysis/FileUpload';
 import { useDebounce } from '@/hooks/useDebounce';
@@ -27,6 +27,21 @@ export function PlagiarismClient() {
   const [error, setError] = useState<string | null>(null);
   const [showFreemiumOverlay, setShowFreemiumOverlay] = useState(true);
   const [isExporting, setIsExporting] = useState(false);
+
+  const prefersReducedMotion = useReducedMotion();
+  const prefersReducedMotionRef = useRef(false);
+  prefersReducedMotionRef.current = !!prefersReducedMotion;
+
+  // Visual checklist scanning progress
+  const [activeStep, setActiveStep] = useState(0);
+  const activeStepRef = useRef(0);
+  useEffect(() => {
+    activeStepRef.current = activeStep;
+  }, [activeStep]);
+
+  const pendingResultRef = useRef<FullAnalysisResult | null>(null);
+  const isWorkerFinishedRef = useRef(false);
+  const activeStepIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const debouncedText = useDebounce(text, 500);
 
@@ -142,14 +157,27 @@ export function PlagiarismClient() {
           tone,
         };
 
-        setResult(fullResult);
-        setProgress(100);
-        setStatus('complete');
-        setShowFreemiumOverlay(true);
+        pendingResultRef.current = fullResult;
+        isWorkerFinishedRef.current = true;
+
+        if (activeStepRef.current >= 4 || prefersReducedMotionRef.current) {
+          setResult(fullResult);
+          setProgress(100);
+          setStatus('complete');
+          setShowFreemiumOverlay(true);
+          if (activeStepIntervalRef.current) {
+            clearInterval(activeStepIntervalRef.current);
+            activeStepIntervalRef.current = null;
+          }
+        }
       } else {
         setError(workerError || 'Plagiarism analysis failed');
         setStatus('error');
         setProgress(0);
+        if (activeStepIntervalRef.current) {
+          clearInterval(activeStepIntervalRef.current);
+          activeStepIntervalRef.current = null;
+        }
       }
     };
 
@@ -164,13 +192,37 @@ export function PlagiarismClient() {
     setStatus('analyzing');
     setProgress(15);
     setError(null);
+    setActiveStep(0);
+    isWorkerFinishedRef.current = false;
+    pendingResultRef.current = null;
 
-    // Simulate progress bar over 1.5s
-    let currentProgress = 15;
-    const interval = setInterval(() => {
-      currentProgress = Math.min(currentProgress + 15, 90);
-      setProgress(currentProgress);
-    }, 150);
+    if (activeStepIntervalRef.current) {
+      clearInterval(activeStepIntervalRef.current);
+    }
+
+    if (prefersReducedMotion) {
+      setActiveStep(4);
+    } else {
+      let currentStep = 0;
+      activeStepIntervalRef.current = setInterval(() => {
+        currentStep += 1;
+        setActiveStep(currentStep);
+        setProgress(Math.min(15 + currentStep * 20, 90));
+        
+        if (currentStep >= 4) {
+          if (activeStepIntervalRef.current) {
+            clearInterval(activeStepIntervalRef.current);
+            activeStepIntervalRef.current = null;
+          }
+          if (isWorkerFinishedRef.current && pendingResultRef.current) {
+            setResult(pendingResultRef.current);
+            setProgress(100);
+            setStatus('complete');
+            setShowFreemiumOverlay(true);
+          }
+        }
+      }, 800);
+    }
 
     const token = process.env.NEXT_PUBLIC_HF_TOKEN || undefined;
 
@@ -180,10 +232,6 @@ export function PlagiarismClient() {
       text: debouncedText,
       token,
     });
-
-    workerRef.current!.addEventListener('message', () => {
-      clearInterval(interval);
-    }, { once: true });
   };
 
   const reset = () => {
@@ -192,11 +240,18 @@ export function PlagiarismClient() {
     setProgress(0);
     setResult(null);
     setError(null);
+    setActiveStep(0);
+    isWorkerFinishedRef.current = false;
+    pendingResultRef.current = null;
+    if (activeStepIntervalRef.current) {
+      clearInterval(activeStepIntervalRef.current);
+      activeStepIntervalRef.current = null;
+    }
   };
 
   const handleFileExtracted = (extractedText: string) => {
     setText(extractedText);
-    setInputMode('text');
+    // Keep inputMode as 'file' to preserve the card view!
   };
 
   const wordCount = text.trim() ? text.trim().split(/\s+/).filter(Boolean).length : 0;
@@ -242,33 +297,156 @@ export function PlagiarismClient() {
               className="bg-bg-card rounded-2xl border border-border-custom p-6 shadow-xl shadow-premium-glow mb-8"
             >
               {/* Tabs */}
-              <div className="flex gap-2 mb-6 border-b border-border-custom/50 pb-4 overflow-x-auto whitespace-nowrap">
-                <button
-                  onClick={() => setInputMode('text')}
-                  className={cn(
-                    'px-4 py-2 rounded-xl text-sm font-semibold transition-all cursor-pointer',
-                    inputMode === 'text'
-                      ? 'bg-accent-purple/10 text-accent-light-purple border border-accent-purple/20'
-                      : 'text-text-muted hover:text-text-primary'
-                  )}
-                >
-                  Paste Text
-                </button>
-                <button
-                  onClick={() => setInputMode('file')}
-                  className={cn(
-                    'px-4 py-2 rounded-xl text-sm font-semibold transition-all cursor-pointer',
-                    inputMode === 'file'
-                      ? 'bg-accent-purple/10 text-accent-light-purple border border-accent-purple/20'
-                      : 'text-text-muted hover:text-text-primary'
-                  )}
-                >
-                  Upload File
-                </button>
-              </div>
+              {status !== 'analyzing' && (
+                <div className="flex gap-2 mb-6 border-b border-border-custom/50 pb-4 overflow-x-auto whitespace-nowrap">
+                  <button
+                    onClick={() => setInputMode('text')}
+                    className={cn(
+                      'px-4 py-2 rounded-xl text-sm font-semibold transition-all cursor-pointer',
+                      inputMode === 'text'
+                        ? 'bg-accent-purple/10 text-accent-light-purple border border-accent-purple/20'
+                        : 'text-text-muted hover:text-text-primary'
+                    )}
+                  >
+                    Paste Text
+                  </button>
+                  <button
+                    onClick={() => setInputMode('file')}
+                    className={cn(
+                      'px-4 py-2 rounded-xl text-sm font-semibold transition-all cursor-pointer',
+                      inputMode === 'file'
+                        ? 'bg-accent-purple/10 text-accent-light-purple border border-accent-purple/20'
+                        : 'text-text-muted hover:text-text-primary'
+                    )}
+                  >
+                    Upload File
+                  </button>
+                </div>
+              )}
 
-              {/* Textarea or File Uploader */}
-              {inputMode === 'text' ? (
+              {/* Textarea or File Uploader or Step-by-Step Progress */}
+              {status === 'analyzing' ? (
+                <div className="flex flex-col py-6 px-4 sm:px-12 max-w-xl mx-auto bg-bg-input/10 rounded-xl border border-border-custom/30">
+                  <div className="text-center space-y-2 mb-8">
+                    <h3 className="text-lg font-bold font-syne text-text-primary">Scanning Document</h3>
+                    <p className="text-xs text-text-muted">Performing multi-layered similarity checks...</p>
+                  </div>
+
+                  {/* Sequential progress checklist */}
+                  <motion.div
+                    variants={{
+                      hidden: { opacity: 0 },
+                      show: {
+                        opacity: 1,
+                        transition: {
+                          staggerChildren: prefersReducedMotion ? 0 : 0.15
+                        }
+                      }
+                    }}
+                    initial="hidden"
+                    animate="show"
+                    className="space-y-4 mb-8"
+                  >
+                    {[
+                      { id: 0, text: "Reading document..." },
+                      { id: 1, text: "Extracting sentences..." },
+                      { id: 2, text: "Checking web sources..." },
+                      { id: 3, text: "Generating report..." }
+                    ].map((step, idx) => {
+                      const isFuture = idx > activeStep;
+                      const isActive = idx === activeStep;
+                      const isCompleted = idx < activeStep;
+
+                      return (
+                        <motion.div
+                          key={step.id}
+                          variants={{
+                            hidden: { opacity: 0, y: 10 },
+                            show: { opacity: 1, y: 0, transition: { type: 'spring', stiffness: 300, damping: 25 } }
+                          }}
+                          className="flex items-center justify-between p-4 rounded-xl border border-border-custom bg-bg-input/20 backdrop-blur-sm transition-all duration-300"
+                          style={{ opacity: isFuture ? 0.3 : 1 }}
+                        >
+                          <div className="flex items-center gap-3.5">
+                            {/* Left Indicator Dot */}
+                            <div className="relative flex items-center justify-center w-5 h-5 shrink-0">
+                              <AnimatePresence mode="wait">
+                                {isCompleted ? (
+                                  <motion.div
+                                    key="completed-dot"
+                                    initial={{ scale: 0 }}
+                                    animate={{ scale: 1 }}
+                                    exit={{ scale: 0 }}
+                                    transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+                                    className="w-2.5 h-2.5 rounded-full bg-accent-green shadow-[0_0_8px_rgba(16,185,129,0.5)]"
+                                  />
+                                ) : isActive ? (
+                                  <motion.div
+                                    key="active-dot"
+                                    initial={{ scale: 0 }}
+                                    animate={{ scale: 1 }}
+                                    exit={{ scale: 0 }}
+                                    transition={{ type: 'spring', stiffness: 300, damping: 15 }}
+                                    className="w-2.5 h-2.5 rounded-full bg-accent-purple shadow-[0_0_8px_rgba(124,92,252,0.6)]"
+                                  />
+                                ) : (
+                                  <div
+                                    key="future-dot"
+                                    className="w-2.5 h-2.5 rounded-full border border-border-custom bg-zinc-800/80"
+                                  />
+                                )}
+                              </AnimatePresence>
+                            </div>
+                            
+                            <span className={cn(
+                              "text-sm font-semibold transition-all duration-300",
+                              isFuture ? "text-text-muted" : "text-text-primary"
+                            )}>
+                              {step.text}
+                            </span>
+                          </div>
+
+                          {/* Right Status Icon */}
+                          <div className="flex items-center justify-center w-6 h-6 shrink-0">
+                            <AnimatePresence mode="wait">
+                              {isCompleted ? (
+                                <motion.div
+                                  key="checked"
+                                  initial={{ scale: 0, rotate: -15 }}
+                                  animate={{ scale: 1, rotate: 0 }}
+                                  transition={{ type: 'spring', stiffness: 300, damping: 15 }}
+                                  className="text-accent-green"
+                                >
+                                  <CheckCircle2 className="w-5 h-5" />
+                                </motion.div>
+                              ) : isActive ? (
+                                <motion.div
+                                  key="loading"
+                                  initial={{ opacity: 0, scale: 0.8 }}
+                                  animate={{ opacity: 1, scale: 1 }}
+                                  exit={{ opacity: 0 }}
+                                >
+                                  <Loader2 className="w-4.5 h-4.5 text-accent-purple animate-spin" />
+                                </motion.div>
+                              ) : null}
+                            </AnimatePresence>
+                          </div>
+                        </motion.div>
+                      );
+                    })}
+                  </motion.div>
+
+                  {/* Linear progress bar at the bottom */}
+                  <div className="w-full h-1.5 bg-bg-input border border-border-custom rounded-full overflow-hidden">
+                    <motion.div
+                      className="h-full bg-gradient-to-r from-accent-purple via-accent-light-purple to-accent-pink"
+                      initial={{ width: '0%' }}
+                      animate={{ width: `${Math.min(activeStep * 25, 100)}%` }}
+                      transition={{ duration: prefersReducedMotion ? 0 : 0.4, ease: 'easeOut' }}
+                    />
+                  </div>
+                </div>
+              ) : inputMode === 'text' ? (
                 <div className="relative rounded-xl border border-border-custom bg-bg-input overflow-hidden">
                   <textarea
                     value={text}
@@ -280,7 +458,7 @@ export function PlagiarismClient() {
                       }
                     }}
                     placeholder="Paste your text here to check for plagiarism... (minimum 10 words)"
-                    disabled={status === 'analyzing'}
+                    disabled={false}
                     className="w-full p-5 bg-transparent text-text-primary text-sm leading-relaxed resize-none focus:outline-none placeholder:text-text-muted focus:border-accent-purple/50 min-h-[200px] sm:min-h-[300px]"
                   />
                   
@@ -309,21 +487,26 @@ export function PlagiarismClient() {
                 </div>
               ) : (
                 <div className="bg-bg-input rounded-xl border border-border-custom p-8 text-center">
-                  <FileUpload onTextExtracted={handleFileExtracted} disabled={status === 'analyzing'} />
+                  <FileUpload 
+                    onTextExtracted={handleFileExtracted} 
+                    onClear={() => setText('')}
+                    disabled={false} 
+                  />
                 </div>
               )}
 
               {/* Action Button */}
               <div className="mt-6 flex flex-col items-center justify-center">
-                <button
+                <motion.button
+                  whileTap={prefersReducedMotion ? {} : { scale: 0.97 }}
                   onClick={handleAnalyze}
                   disabled={!debouncedText.trim() || wordCount < 10 || status === 'analyzing'}
-                  className="px-10 py-4 rounded-xl font-bold text-text-primary bg-gradient-to-r from-accent-purple to-accent-light-purple hover:shadow-[0_0_25px_rgba(124,92,252,0.45)] transition-all duration-300 flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                  className="px-10 py-4 rounded-xl font-bold text-text-primary bg-gradient-to-r from-accent-purple to-accent-light-purple hover:shadow-[0_0_25px_rgba(124,92,252,0.45)] transition-all duration-300 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                 >
                   {status === 'analyzing' ? (
                     <>
-                      <div className="w-5 h-5 border-2 border-text-primary border-t-transparent rounded-full animate-spin mr-1" />
-                      Checking... {progress}%
+                      <Loader2 className="w-5 h-5 text-text-primary animate-spin mr-1" />
+                      Analyzing...
                     </>
                   ) : (
                     <>
@@ -331,7 +514,7 @@ export function PlagiarismClient() {
                       Check Plagiarism
                     </>
                   )}
-                </button>
+                </motion.button>
 
                 {wordCount < 10 && text.trim().length > 0 && (
                   <p className="text-xs text-accent-pink mt-3 font-semibold">
@@ -339,18 +522,6 @@ export function PlagiarismClient() {
                   </p>
                 )}
               </div>
-
-              {/* Progress bar */}
-              {status === 'analyzing' && (
-                <div className="mt-6 w-full h-1.5 bg-bg-input border border-border-custom rounded-full overflow-hidden">
-                  <motion.div
-                    className="h-full bg-gradient-to-r from-accent-purple to-accent-pink"
-                    initial={{ width: '0%' }}
-                    animate={{ width: '100%' }}
-                    transition={{ duration: 1.5, ease: 'easeOut' }} // Plagiarism = 1.5s duration
-                  />
-                </div>
-              )}
 
               {/* Error block */}
               {error && (
