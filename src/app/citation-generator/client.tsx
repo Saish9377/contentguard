@@ -82,8 +82,8 @@ export function CitationClient() {
           <Quote className="w-4 h-4" />
           Citation Generator
         </div>
-        <h1 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight mb-4">
-          Generate{' '}<span className="gradient-text">Citations</span> Instantly
+        <h1 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight mb-4 animate-fadeIn">
+          Free Citation Generator —{' '}<span className="gradient-text">APA, MLA, Harvard & Chicago</span>
         </h1>
         <p className="text-lg text-[var(--text-secondary)] max-w-2xl mx-auto">
           Create properly formatted citations in APA, MLA, Harvard, and Chicago styles.
@@ -274,6 +274,16 @@ export function CitationClient() {
       </div>
 
       <AdSlot format="horizontal" className="max-w-4xl mx-auto mt-8" />
+
+      {/* SEO Content Section */}
+      <div className="mt-16 pt-8 border-t border-border-custom/30 max-w-3xl mx-auto">
+        <h2 className="text-xl font-bold font-syne text-text-primary mb-4">
+          About Our Free Citation Generator
+        </h2>
+        <p className="text-sm text-text-muted leading-relaxed">
+          Our free citation generator makes bibliography compilation simple for students, academic researchers, and writers. Using our free citation maker, you can instantly format references in APA, MLA, Harvard, and Chicago styles. Simply select your style, enter reference details such as author name, article title, and publication year, and copy the correctly formatted output. ContentGuard citation generator online is completely free with no limits on the number of references created. Create accurate bibliographies, works cited lists, and citations instantly online for free without creating an account.
+        </p>
+      </div>
     </div>
   );
 }

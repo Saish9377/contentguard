@@ -133,9 +133,9 @@ export function HeroSection() {
               variants={itemVariants}
               className="text-4xl sm:text-5xl lg:text-[3.25rem] xl:text-[3.75rem] font-syne font-extrabold tracking-tight leading-[1.1] mb-5 text-text-primary"
             >
-              Detect AI Content &{' '}
+              Free AI Content Detector &{' '}
               <span className="bg-gradient-to-r from-accent-purple via-accent-light-purple to-accent-pink bg-clip-text text-transparent">
-                Check Plagiarism
+                Plagiarism Checker
               </span>
             </motion.h1>
 

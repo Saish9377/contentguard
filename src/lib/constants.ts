@@ -1,6 +1,6 @@
 export const APP_NAME = 'ContentGuard AI';
 export const APP_DESCRIPTION = 'Free AI Content Detector & Plagiarism Checker — Detect AI-generated content, check plagiarism, analyze grammar, and generate citations. No signup required.';
-export const APP_URL = 'https://contentguard.ai';
+export const APP_URL = 'https://contentguard.saishshinde2030.workers.dev';
 
 export const MAX_FILE_SIZE = 1024 * 1024 * 1024; // 1GB (virtually unlimited)
 export const SUPPORTED_FILE_TYPES = ['.pdf', '.docx', '.txt'];

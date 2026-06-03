@@ -275,9 +275,9 @@ export function PlagiarismClient() {
             PLAGIARISM CHECKER
           </div>
           <h1 className="text-4xl sm:text-5xl font-syne font-extrabold tracking-tight mb-4">
-            Check Content{' '}
+            Free Plagiarism Checker —{' '}
             <span className="bg-gradient-to-r from-accent-purple via-accent-light-purple to-accent-pink bg-clip-text text-transparent">
-              Originality
+              Check Content Originality
             </span>
           </h1>
           <p className="text-sm sm:text-base text-text-muted max-w-xl mx-auto">
@@ -555,6 +555,16 @@ export function PlagiarismClient() {
             </motion.div>
           )}
         </AnimatePresence>
+
+        {/* SEO Content Section */}
+        <div className="mt-16 pt-8 border-t border-border-custom/30">
+          <h2 className="text-xl font-bold font-syne text-text-primary mb-4">
+            About Our Free Plagiarism Checker
+          </h2>
+          <p className="text-sm text-text-muted leading-relaxed">
+            Our free plagiarism checker helps students, teachers, and content writers verify the originality of their work instantly. Simply paste your text or upload a PDF/DOCX file to check plagiarism online for free. ContentGuard compares your content against billions of web sources and academic databases, returning an exact match score, partial match score, and unique content percentage. Unlike paid tools, our plagiarism checker requires no account creation and stores no documents. Get detailed similarity reports with source citations in seconds.
+          </p>
+        </div>
 
       </div>
     </div>

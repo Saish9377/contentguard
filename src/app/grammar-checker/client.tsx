@@ -37,8 +37,8 @@ export function GrammarClient() {
           <SpellCheck className="w-4 h-4" />
           Grammar Checker
         </div>
-        <h1 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight mb-4">
-          Fix Grammar &{' '}<span className="gradient-text">Spelling</span> Errors
+        <h1 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight mb-4 animate-fadeIn">
+          Free Grammar Checker —{' '}<span className="gradient-text">Fix Errors Instantly</span>
         </h1>
         <p className="text-lg text-[var(--text-secondary)] max-w-2xl mx-auto">
           Detect grammar errors, spelling mistakes, and punctuation issues with smart correction suggestions.
@@ -95,6 +95,15 @@ export function GrammarClient() {
           </div>
         </>
       )}
+      {/* SEO Content Section */}
+      <div className="mt-16 pt-8 border-t border-border-custom/30 max-w-3xl mx-auto">
+        <h2 className="text-xl font-bold font-syne text-text-primary mb-4">
+          About Our Free Grammar Checker
+        </h2>
+        <p className="text-sm text-text-muted leading-relaxed">
+          Our free grammar checker allows writers, students, and professionals to check grammar, spelling, punctuation, and style issues instantly for free. Simply paste your text to initiate real-time syntax checking. The ContentGuard free grammar checker highlights errors and suggests corrections with explanations to improve clarity. Ensure your cover letters, emails, essays, and academic projects are polished and error-free. Unlike other paid assistants, this grammar tool requires no account creation and offers completely free, unlimited usage.
+        </p>
+      </div>
     </div>
   );
 }

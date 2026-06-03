@@ -38,8 +38,8 @@ export function WordCounterClient() {
           <Hash className="w-4 h-4" />
           Word Counter
         </div>
-        <h1 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight mb-4">
-          Count Words &{' '}<span className="gradient-text">Characters</span>
+        <h1 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight mb-4 animate-fadeIn">
+          Free Word Counter —{' '}<span className="gradient-text">Count Words & Characters Online</span>
         </h1>
         <p className="text-lg text-[var(--text-secondary)] max-w-2xl mx-auto">
           Real-time word, character, sentence, and paragraph counting with detailed writing metrics.
@@ -152,6 +152,16 @@ export function WordCounterClient() {
       </div>
 
       <AdSlot format="horizontal" className="max-w-3xl mx-auto mb-8" />
+
+      {/* SEO Content Section */}
+      <div className="mt-16 pt-8 border-t border-border-custom/30 max-w-3xl mx-auto">
+        <h2 className="text-xl font-bold font-syne text-text-primary mb-4">
+          About Our Free Word Counter
+        </h2>
+        <p className="text-sm text-text-muted leading-relaxed">
+          Our free word counter provides instant, detailed writing metrics for writers, students, bloggers, and editors online for free. The ContentGuard free word counter online tool analyzes character count (with and without spaces), sentence count, paragraph count, and average word length in real time. Simply type or paste your text to check reading time, speaking time, and vocabulary density instantly. Perfect for tracking essay limits, social media character caps, or copywriter drafts. Features require no account signup or text storage, offering secure and private analysis at no cost.
+        </p>
+      </div>
     </div>
   );
 }

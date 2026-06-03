@@ -6,6 +6,6 @@ export default function robots(): MetadataRoute.Robots {
       userAgent: '*',
       allow: '/',
     },
-    sitemap: 'https://contentguard.ai/sitemap.xml',
+    sitemap: 'https://contentguard.saishshinde2030.workers.dev/sitemap.xml',
   };
 }

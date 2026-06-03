@@ -37,8 +37,8 @@ export function ReadabilityClient() {
           <BookOpen className="w-4 h-4" />
           Readability Checker
         </div>
-        <h1 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight mb-4">
-          Analyze Text{' '}<span className="gradient-text">Readability</span>
+        <h1 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight mb-4 animate-fadeIn">
+          Free Readability Checker —{' '}<span className="gradient-text">Analyze Your Writing Level</span>
         </h1>
         <p className="text-lg text-[var(--text-secondary)] max-w-2xl mx-auto">
           Measure reading level, complexity score, and estimated reading time for your content.
@@ -95,6 +95,15 @@ export function ReadabilityClient() {
           </div>
         </>
       )}
+      {/* SEO Content Section */}
+      <div className="mt-16 pt-8 border-t border-border-custom/30 max-w-3xl mx-auto">
+        <h2 className="text-xl font-bold font-syne text-text-primary mb-4">
+          About Our Free Readability Checker
+        </h2>
+        <p className="text-sm text-text-muted leading-relaxed">
+          Our free readability checker helps writers, students, bloggers, and editors analyze the readability of any text online for free. The ContentGuard free readability tool calculates the Flesch Reading Ease score, Flesch-Kincaid Grade Level, and estimated reading/speaking times instantly. Simply paste your text to get detailed clarity ratings, sentence structure breakdowns, and vocabulary complexity scores. Optimize your content for search engines, simplify technical guides, or polish academic drafts. With no signup or login required, you can evaluate your writing density and quality immediately without restriction.
+        </p>
+      </div>
     </div>
   );
 }
