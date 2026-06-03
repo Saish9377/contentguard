@@ -10,8 +10,7 @@ import { analyzeReadability } from '@/lib/analysis/readability';
 import { calculateWritingMetrics } from '@/lib/analysis/writing-metrics';
 import { analyzeTone } from '@/lib/analysis/tone-analyzer';
 import { generatePlagiarismReport } from '@/lib/pdf-generator';
-import { ResultsDashboard } from '@/components/analysis/ResultsDashboard';
-import PlagiarismTab from '@/components/analysis/tabs/PlagiarismTab';
+import { PlagiarismResults } from '@/components/analysis/PlagiarismResults';
 import { toast } from 'sonner';
 import { FullAnalysisResult, PlagiarismResult } from '@/types/analysis';
 
@@ -380,7 +379,7 @@ export function PlagiarismClient() {
 
               {/* Dashboard Wrapper */}
               <div className="relative">
-                <ResultsDashboard result={result} defaultTab="plagiarism" />
+                <PlagiarismResults result={result} onReset={reset} />
               </div>
             </motion.div>
           )}

@@ -874,6 +874,15 @@ export async function generatePlagiarismReport(data: PlagiarismReportData): Prom
 
     const dateStr = generatedAt.toISOString().split('T')[0];
 
+    // Calculate Exact vs Partial match split
+    const totalWords = wordCount || 1;
+    const exactWords = matches
+      .filter(m => m.matchPercentage >= 70)
+      .reduce((sum, m) => sum + m.text.split(/\s+/).filter(Boolean).length, 0);
+
+    const exactScore = Math.min(similarityScore, Math.round((exactWords / totalWords) * 100));
+    const partialScore = Math.max(0, similarityScore - exactScore);
+
     // =========================================================================
     // PAGE 1 — COVER PAGE
     // =========================================================================
@@ -948,16 +957,43 @@ export async function generatePlagiarismReport(data: PlagiarismReportData): Prom
 
     // 3. 4 Score Cards Section (y = 92)
     const cardY = 92;
+    const getPlagiarismScoreDetails = (type: 'plagiarism' | 'exact' | 'partial' | 'unique', val: number) => {
+      let col = [34, 197, 94]; // success green
+      let label = 'Unique';
+      if (type === 'plagiarism') {
+        if (val === 0) {
+          col = [34, 197, 94]; // green
+          label = 'Plagiarism';
+        } else if (val <= 10) {
+          col = [245, 158, 11]; // orange
+          label = 'Plagiarism';
+        } else {
+          col = [239, 68, 68]; // red
+          label = 'Plagiarism';
+        }
+      } else if (type === 'exact') {
+        col = [239, 68, 68]; // red
+        label = 'Exact Match';
+      } else if (type === 'partial') {
+        col = [245, 158, 11]; // amber/yellow
+        label = 'Partial Match';
+      } else if (type === 'unique') {
+        col = [34, 197, 94]; // green
+        label = 'Unique';
+      }
+      return { col, label };
+    };
+
     const cards = [
-      { type: 'ai' as const, title: 'AI PROBABILITY', val: aiScore },
-      { type: 'originality' as const, title: 'ORIGINALITY', val: originalityScore },
-      { type: 'grammar' as const, title: 'GRAMMAR', val: grammarScore },
-      { type: 'quality' as const, title: 'QUALITY', val: qualityScore }
+      { type: 'plagiarism' as const, title: 'PLAGIARISM', val: similarityScore },
+      { type: 'exact' as const, title: 'EXACT MATCH', val: exactScore },
+      { type: 'partial' as const, title: 'PARTIAL MATCH', val: partialScore },
+      { type: 'unique' as const, title: 'UNIQUE', val: originalityScore }
     ];
 
     cards.forEach((card, index) => {
       const cardX = 20 + index * 44; // 38mm width + 6mm gap
-      const { col, label } = getScoreDetails(card.type, card.val);
+      const { col, label } = getPlagiarismScoreDetails(card.type, card.val);
 
       // Card boundary box
       doc.setDrawColor(col[0], col[1], col[2]);
@@ -973,7 +1009,7 @@ export async function generatePlagiarismReport(data: PlagiarismReportData): Prom
 
       doc.setFontSize(24);
       doc.setTextColor(col[0], col[1], col[2]);
-      doc.text(`${card.val !== undefined ? card.val : 'N/A'}%`, cardX + 19, 118, { align: 'center' });
+      doc.text(`${card.val !== undefined ? card.val : '0'}%`, cardX + 19, 118, { align: 'center' });
 
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(8);
@@ -1013,16 +1049,6 @@ export async function generatePlagiarismReport(data: PlagiarismReportData): Prom
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(9);
     doc.text('Plagiarism Analysis & Detailed Dashboard', 24, 25);
-
-    // Calculate Exact vs Partial match split
-    const totalWords = wordCount || 1;
-    const exactWords = matches
-      .filter(m => m.matchPercentage >= 70)
-      .reduce((sum, m) => sum + m.text.split(/\s+/).filter(Boolean).length, 0);
-
-    const exactScore = Math.min(similarityScore, Math.round((exactWords / totalWords) * 100));
-    const partialScore = Math.max(0, similarityScore - exactScore);
-
     // 2. Main Dashboard Layout (4 side-by-side cards)
     const ctx = doc.context2d;
     const r = 11;
@@ -1363,11 +1389,7 @@ export async function generatePlagiarismReport(data: PlagiarismReportData): Prom
       doc.setFontSize(8);
       doc.setTextColor(139, 143, 168); // muted gray
 
-      if (i === 1) {
-        doc.text('ContentGuard | AI Authenticity Platform', 20, 283);
-      } else {
-        doc.text('ContentGuard | Plagiarism Scan Report', 20, 283);
-      }
+      doc.text('ContentGuard | Plagiarism Scan Report', 20, 283);
       doc.text(`Page ${i} of ${totalPages}`, 105, 283, { align: 'center' });
       doc.text('contentguard.app', 190, 283, { align: 'right' });
       doc.restoreGraphicsState();
