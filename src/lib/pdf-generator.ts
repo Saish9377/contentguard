@@ -883,6 +883,27 @@ export async function generatePlagiarismReport(data: PlagiarismReportData): Prom
     const exactScore = Math.min(similarityScore, Math.round((exactWords / totalWords) * 100));
     const partialScore = Math.max(0, similarityScore - exactScore);
 
+    const ctx = doc.context2d;
+    
+    // Canvas helper functions for rendering premium vector gauges
+    const drawArc = (cx: number, cy: number, radius: number, startAngle: number, endAngle: number, color: string, w: number) => {
+      ctx.beginPath();
+      ctx.arc(cx, cy, radius, startAngle, endAngle, false);
+      ctx.lineWidth = w;
+      ctx.strokeStyle = color;
+      ctx.stroke();
+    };
+
+    const drawGauge = (cx: number, cy: number, radius: number, val: number, color: string, w: number = 5) => {
+      // background ring
+      drawArc(cx, cy, radius, 0, 2 * Math.PI, '#f1f5f9', w);
+      // filled arc
+      if (val > 0) {
+        const rad = (val / 100) * 2 * Math.PI;
+        drawArc(cx, cy, radius, -0.5 * Math.PI, -0.5 * Math.PI + rad, color, w);
+      }
+    };
+
     // =========================================================================
     // PAGE 1 — COVER PAGE
     // =========================================================================
@@ -917,29 +938,68 @@ export async function generatePlagiarismReport(data: PlagiarismReportData): Prom
     doc.setFillColor(16, 185, 129);
     doc.rect(140, 45, 70, 2, 'F');
 
-    // 2. Report Meta Info (Below header, light gray card with left accent)
-    doc.setFillColor(248, 250, 252);
-    doc.setDrawColor(226, 232, 240);
-    doc.setLineWidth(0.4);
-    doc.roundedRect(20, 58, 170, 26, 3, 3, 'FD');
-    doc.setFillColor(124, 92, 252);
-    doc.rect(20, 58, 2, 26, 'F');
+    // 2. CENTERPIECE ORIGINALITY DONUT & METADATA LIST (Replacing raw box)
+    const coverCX = 55;
+    const coverCY = 70;
+    const coverR = 14;
+    const coverW = 5.5;
 
-    // Meta Info Column Labels
-    doc.setFontSize(8);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(100, 116, 139); // slate-500
-    doc.text('DATE GENERATED', 27, 67);
-    doc.text('REPORT SCAN ID', 82, 67);
-    doc.text('TOTAL WORDS', 145, 67);
+    // Background ring
+    drawArc(coverCX, coverCY, coverR, 0, 2 * Math.PI, '#f1f5f9', coverW);
 
-    // Meta Info Values
+    // Unique (Green) vs Plagiarism (Red) segments
+    const radUniqueCover = (originalityScore / 100) * 2 * Math.PI;
+    const radPlagCover = (similarityScore / 100) * 2 * Math.PI;
+
+    if (originalityScore > 0) {
+      drawArc(coverCX, coverCY, coverR, -0.5 * Math.PI, -0.5 * Math.PI + radUniqueCover, '#10b981', coverW);
+    }
+    if (similarityScore > 0) {
+      drawArc(coverCX, coverCY, coverR, -0.5 * Math.PI + radUniqueCover, -0.5 * Math.PI + radUniqueCover + radPlagCover, '#ef4444', coverW);
+    }
+
+    // Center text inside centerpiece Donut
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(9.5);
-    doc.setTextColor(30, 41, 59); // slate-800
-    doc.text(generatedAt.toLocaleString(), 27, 75);
-    doc.text(reportId, 82, 75);
-    doc.text(wordCount.toLocaleString(), 145, 75);
+    doc.setFontSize(14);
+    doc.setTextColor(16, 185, 129); // Green
+    doc.text(`${originalityScore}%`, coverCX, coverCY + 1.2, { align: 'center' });
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(6.5);
+    doc.setTextColor(148, 163, 184);
+    doc.text('Originality', coverCX, coverCY + 5.2, { align: 'center' });
+
+    // Metadata Vertical List (Right side)
+    const metaY = 57;
+    const itemH = 6.8;
+    const toneStr = tone || 'Neutral';
+
+    const metaItems = [
+      { label: 'DATE SCAN', val: generatedAt.toLocaleString() },
+      { label: 'REPORT SCAN ID', val: reportId },
+      { label: 'TOTAL WORDS', val: wordCount.toLocaleString() + ' words' },
+      { label: 'CONTENT TONE', val: `${toneStr} (${toneConfidence}%)` }
+    ];
+
+    metaItems.forEach((item, idx) => {
+      const lineY = metaY + idx * itemH;
+
+      // Draw vertical accent line in violet
+      doc.setFillColor(99, 102, 241);
+      doc.rect(98, lineY - 3, 1.2, 7.5, 'F');
+
+      // Print label
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(7.2);
+      doc.setTextColor(100, 116, 139); // slate-500
+      doc.text(item.label, 104, lineY - 0.2);
+
+      // Print value
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8.5);
+      doc.setTextColor(30, 41, 59); // slate-800
+      doc.text(item.val, 136, lineY - 0.2);
+    });
 
     // 3. 4 Score Cards Section (y = 92)
     const cardY = 92;
@@ -983,7 +1043,7 @@ export async function generatePlagiarismReport(data: PlagiarismReportData): Prom
     ];
 
     cards.forEach((card, index) => {
-      const cardX = 20 + index * 44; // 38mm width + 6mm gap
+      const cardX = 20 + index * 44; // 38mm width + 6mm gap (starts at x=20, ends at x=190 perfectly)
       const { col, label, desc } = getPlagiarismScoreDetails(card.type, card.val);
 
       // Card shadow
@@ -999,7 +1059,7 @@ export async function generatePlagiarismReport(data: PlagiarismReportData): Prom
 
       doc.setFillColor(bgCol[0], bgCol[1], bgCol[2]);
       doc.setDrawColor(col[0], col[1], col[2]);
-      doc.setLineWidth(0.5);
+      doc.setLineWidth(0.3); // Thinner border
       doc.roundedRect(cardX, cardY, 38, 45, 2.5, 2.5, 'FD');
 
       // Accent line top
@@ -1026,7 +1086,7 @@ export async function generatePlagiarismReport(data: PlagiarismReportData): Prom
       doc.text(desc, cardX + 19, cardY + 40, { align: 'center' });
     });
 
-    // 4. Content Preview Box
+    // 4. Content Preview Box (Margined perfectly at x=20, width=170)
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(9);
     doc.setTextColor(100, 116, 139);
@@ -1034,20 +1094,15 @@ export async function generatePlagiarismReport(data: PlagiarismReportData): Prom
 
     // Shadow
     doc.setFillColor(241, 245, 249);
-    doc.roundedRect(21, 159, 170, 52, 3, 3, 'F');
+    doc.roundedRect(21, 159, 170, 52, 2.5, 2.5, 'F');
 
     // Box border
     doc.setFillColor(255, 255, 255);
     doc.setDrawColor(226, 232, 240);
-    doc.setLineWidth(0.4);
-    doc.roundedRect(20, 158, 170, 52, 3, 3, 'FD');
+    doc.setLineWidth(0.3); // Thinner border
+    doc.roundedRect(20, 158, 170, 52, 2.5, 2.5, 'FD');
 
-    // Paper tag graphic
-    doc.setDrawColor(203, 213, 225);
-    doc.setLineWidth(0.4);
-    doc.rect(174, 164, 8, 10, 'S');
-    doc.line(178, 164, 182, 168);
-
+    // Content Text inside
     doc.setFont('times', 'normal');
     doc.setFontSize(9.5);
     doc.setTextColor(71, 85, 105);
@@ -1055,19 +1110,19 @@ export async function generatePlagiarismReport(data: PlagiarismReportData): Prom
     const previewRaw = text.length > 300 
       ? text.substring(0, 300) + '...' 
       : text;
-    const previewLines = doc.splitTextToSize(previewRaw, 156);
-    doc.text(previewLines, 26, 170);
+    const previewLines = doc.splitTextToSize(previewRaw, 158);
+    doc.text(previewLines, 26, 169);
 
-    // 5. Verification Security / Authenticity Seal
+    // 5. Verification Security / Authenticity Seal (Margined perfectly at x=20, width=170)
     // Shadow
     doc.setFillColor(241, 245, 249);
-    doc.roundedRect(21, 221, 170, 42, 3, 3, 'F');
+    doc.roundedRect(21, 221, 170, 42, 2.5, 2.5, 'F');
 
     // Box
     doc.setFillColor(248, 250, 252);
     doc.setDrawColor(226, 232, 240);
-    doc.setLineWidth(0.4);
-    doc.roundedRect(20, 220, 170, 42, 3, 3, 'FD');
+    doc.setLineWidth(0.3); // Thinner border
+    doc.roundedRect(20, 220, 170, 42, 2.5, 2.5, 'FD');
 
     // Left emerald accent
     doc.setFillColor(16, 185, 129);
@@ -1115,38 +1170,19 @@ export async function generatePlagiarismReport(data: PlagiarismReportData): Prom
     doc.setFillColor(124, 92, 252);
     doc.rect(0, 25, 210, 1.5, 'F');
 
-    // 2. Main Dashboard Layout (3 widgets side-by-side)
+    // 2. Main Dashboard Layout (Cards aligned strictly to margins: Left at x=20, Right at x=108, total width 170)
     // Widget 1: Large Donut Chart (Originality vs Plagiarism)
     doc.setFillColor(255, 255, 255);
     doc.setDrawColor(226, 232, 240);
-    doc.setLineWidth(0.4);
-    doc.roundedRect(15, 32, 85, 82, 3, 3, 'FD');
+    doc.setLineWidth(0.3); // Thinner border
+    doc.roundedRect(20, 32, 82, 82, 3, 3, 'FD'); // Start at x=20, width=82 (ends at x=102)
 
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(9);
     doc.setTextColor(30, 41, 59);
-    doc.text('ORIGINALITY VS PLAGIARISM', 22, 42);
+    doc.text('ORIGINALITY VS PLAGIARISM', 27, 42);
 
-    const ctx = doc.context2d;
-    const drawArc = (cx: number, cy: number, radius: number, startAngle: number, endAngle: number, color: string, w: number) => {
-      ctx.beginPath();
-      ctx.arc(cx, cy, radius, startAngle, endAngle, false);
-      ctx.lineWidth = w;
-      ctx.strokeStyle = color;
-      ctx.stroke();
-    };
-
-    const drawGauge = (cx: number, cy: number, radius: number, val: number, color: string, w: number = 5) => {
-      // background ring
-      drawArc(cx, cy, radius, 0, 2 * Math.PI, '#f1f5f9', w);
-      // filled arc
-      if (val > 0) {
-        const rad = (val / 100) * 2 * Math.PI;
-        drawArc(cx, cy, radius, -0.5 * Math.PI, -0.5 * Math.PI + rad, color, w);
-      }
-    };
-
-    const largeCX = 57.5;
+    const largeCX = 61;
     const largeCY = 70;
     const largeR = 18;
     const largeW = 6.5;
@@ -1181,29 +1217,30 @@ export async function generatePlagiarismReport(data: PlagiarismReportData): Prom
 
     // Legend
     doc.setFillColor(16, 185, 129);
-    doc.circle(28, 98, 1.5, 'F');
+    doc.circle(33, 98, 1.5, 'F');
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(8);
     doc.setTextColor(71, 85, 105);
-    doc.text(`Unique Content: ${originalityScore}%`, 33, 99.5);
+    doc.text(`Unique Content: ${originalityScore}%`, 38, 99.5);
 
     doc.setFillColor(239, 68, 68);
-    doc.circle(28, 105, 1.5, 'F');
-    doc.text(`Plagiarized Content: ${similarityScore}%`, 33, 106.5);
+    doc.circle(33, 105, 1.5, 'F');
+    doc.text(`Plagiarized Content: ${similarityScore}%`, 38, 106.5);
 
 
-    // Widget 2: Plagiarism Subtypes (Right column, top, y = 32 to 70, x = 105 to 195, width 90)
+    // Widget 2: Plagiarism Subtypes (Right column, top, starts at x=108, ends at x=190, width=82)
     doc.setFillColor(255, 255, 255);
     doc.setDrawColor(226, 232, 240);
-    doc.roundedRect(105, 32, 90, 38, 3, 3, 'FD');
+    doc.setLineWidth(0.3); // Thinner border
+    doc.roundedRect(108, 32, 82, 38, 3, 3, 'FD');
 
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(8.5);
     doc.setTextColor(30, 41, 59);
-    doc.text('MATCH TYPES DETECTED', 112, 40);
+    doc.text('MATCH TYPES DETECTED', 114, 40);
 
-    const smallCX1 = 127;
-    const smallCX2 = 173;
+    const smallCX1 = 129;
+    const smallCX2 = 169;
     const topCY = 51;
     const smallR = 7.5;
     const smallW = 3.5;
@@ -1231,15 +1268,16 @@ export async function generatePlagiarismReport(data: PlagiarismReportData): Prom
     doc.text('Partial Match', smallCX2, topCY + 10.5, { align: 'center' });
 
 
-    // Widget 3: Document Stats Table (Right column, bottom, y = 74 to 114, x = 105 to 195, width 90)
+    // Widget 3: Document Stats Table (Right column, bottom, starts at x=108, ends at x=190, width=82)
     doc.setFillColor(255, 255, 255);
     doc.setDrawColor(226, 232, 240);
-    doc.roundedRect(105, 74, 90, 40, 3, 3, 'FD');
+    doc.setLineWidth(0.3); // Thinner border
+    doc.roundedRect(108, 74, 82, 40, 3, 3, 'FD');
 
     const rHeight = 5.8;
-    const tableX = 110;
+    const tableX = 112;
     const tableY = 77;
-    const tableW = 80;
+    const tableW = 74;
 
     const rTime = Math.max(1, Math.ceil(wordCount / 200));
     const sTime = Math.max(1, Math.ceil(wordCount / 130));
@@ -1257,7 +1295,7 @@ export async function generatePlagiarismReport(data: PlagiarismReportData): Prom
       const rowY = tableY + idx * rHeight;
       if (idx % 2 === 0) {
         doc.setFillColor(248, 250, 252);
-        doc.rect(tableX - 2, rowY - 1, tableW, rHeight, 'F');
+        doc.rect(tableX - 2, rowY - 1, tableW + 4, rHeight, 'F');
       }
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(7.5);
@@ -1266,23 +1304,24 @@ export async function generatePlagiarismReport(data: PlagiarismReportData): Prom
 
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(30, 41, 59);
-      doc.text(stat.val, tableX + tableW - 4, rowY + 3.8, { align: 'right' });
+      doc.text(stat.val, tableX + tableW, rowY + 3.8, { align: 'right' });
     });
 
 
-    // Widget 4: Visual Originality Comparison Bar (y = 120, x = 15, w = 180, h = 42)
+    // Widget 4: Visual Originality Comparison Bar (Aligned strictly at x=20, width=170)
     doc.setFillColor(255, 255, 255);
     doc.setDrawColor(226, 232, 240);
-    doc.roundedRect(15, 120, 180, 42, 3, 3, 'FD');
+    doc.setLineWidth(0.3); // Thinner border
+    doc.roundedRect(20, 120, 170, 42, 3, 3, 'FD');
 
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(9);
     doc.setTextColor(30, 41, 59);
-    doc.text('VISUAL ORIGINALITY COMPARISON BAR', 22, 129);
+    doc.text('VISUAL ORIGINALITY COMPARISON BAR', 27, 129);
 
-    const barX = 22;
+    const barX = 26;
     const barY = 135;
-    const barW = 166;
+    const barW = 158;
     const barH = 8;
 
     const wUnique = (originalityScore / 100) * barW;
@@ -1311,30 +1350,32 @@ export async function generatePlagiarismReport(data: PlagiarismReportData): Prom
 
     // Legend
     doc.setFillColor(16, 185, 129);
-    doc.circle(28, 152, 1.5, 'F');
+    doc.circle(32, 152, 1.5, 'F');
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8);
     doc.setTextColor(100, 116, 139);
-    doc.text(`Unique: ${originalityScore}%`, 33, 153.5);
+    doc.text(`Unique: ${originalityScore}%`, 37, 153.5);
 
     doc.setFillColor(239, 68, 68);
-    doc.circle(80, 152, 1.5, 'F');
-    doc.text(`Exact Match: ${exactScore}%`, 85, 153.5);
+    doc.circle(82, 152, 1.5, 'F');
+    doc.text(`Exact Match: ${exactScore}%`, 87, 153.5);
 
     doc.setFillColor(59, 130, 246);
-    doc.circle(135, 152, 1.5, 'F');
-    doc.text(`Partial Match: ${partialScore}%`, 140, 153.5);
+    doc.circle(138, 152, 1.5, 'F');
+    doc.text(`Partial Match: ${partialScore}%`, 143, 153.5);
 
 
-    // Widget 5: Scan Coverage Checklist (y = 168, x = 15, w = 180, h = 44)
+    // Widget 5: Scan Coverage Checklist (Aligned strictly at x=20, width=170)
+    // Structured checklist layout to completely prevent any text overlap
     doc.setFillColor(255, 255, 255);
     doc.setDrawColor(226, 232, 240);
-    doc.roundedRect(15, 168, 180, 44, 3, 3, 'FD');
+    doc.setLineWidth(0.3); // Thinner border
+    doc.roundedRect(20, 168, 170, 44, 3, 3, 'FD');
 
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(9);
     doc.setTextColor(30, 41, 59);
-    doc.text('SCAN PARAMETERS & DATABASE COVERAGE', 22, 177);
+    doc.text('SCAN PARAMETERS & DATABASE COVERAGE', 27, 177);
 
     const checkItems = [
       { t: 'Jaccard Web Index', d: 'Scanned active online resources, web pages, blogs, and news feeds.' },
@@ -1346,39 +1387,43 @@ export async function generatePlagiarismReport(data: PlagiarismReportData): Prom
     checkItems.forEach((item, idx) => {
       const itemY = 184 + idx * 6.5;
 
-      doc.setDrawColor(16, 185, 129);
-      doc.setLineWidth(0.4);
-      doc.setFillColor(240, 253, 244);
-      doc.rect(22, itemY - 2.5, 3.5, 3.5, 'FD');
+      // Solid emerald green circle checkmarks
+      doc.setFillColor(16, 185, 129);
+      doc.circle(25.5, itemY - 1, 1.8, 'F');
 
-      doc.setLineWidth(0.6);
-      doc.line(22.8, itemY - 1, 23.8, itemY - 0.4);
-      doc.line(23.8, itemY - 0.4, 25, itemY - 2.2);
+      // White checkmark tick vector
+      doc.setDrawColor(255, 255, 255);
+      doc.setLineWidth(0.5);
+      doc.line(24.3, itemY - 1, 25.1, itemY - 0.4);
+      doc.line(25.1, itemY - 0.4, 26.3, itemY - 1.8);
 
+      // Title (col 1: aligned at x=31, fits titles up to 40mm)
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(8);
       doc.setTextColor(30, 41, 59);
-      doc.text(item.t + ':', 28, itemY);
+      doc.text(item.t + ':', 31, itemY);
 
+      // Description (col 2: aligned strictly at x=76, avoiding overlap completely)
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(7.5);
       doc.setTextColor(100, 116, 139);
-      doc.text(item.d, 68, itemY);
+      doc.text(item.d, 76, itemY);
     });
 
 
-    // Widget 6: Executive Verification Assessment (y = 218, x = 15, w = 180, h = 44)
+    // Widget 6: Executive Verification Assessment (Aligned strictly at x=20, width=170)
     doc.setFillColor(248, 250, 252);
     doc.setDrawColor(226, 232, 240);
-    doc.roundedRect(15, 218, 180, 44, 3, 3, 'FD');
+    doc.setLineWidth(0.3); // Thinner border
+    doc.roundedRect(20, 218, 170, 44, 3, 3, 'FD');
 
     doc.setFillColor(124, 92, 252);
-    doc.rect(15, 218, 2, 44, 'F');
+    doc.rect(20, 218, 2, 44, 'F');
 
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(9);
     doc.setTextColor(124, 92, 252);
-    doc.text('EXECUTIVE VERIFICATION ASSESSMENT', 22, 227);
+    doc.text('EXECUTIVE VERIFICATION ASSESSMENT', 27, 227);
 
     let feedback = '';
     if (similarityScore === 0) {
@@ -1392,8 +1437,8 @@ export async function generatePlagiarismReport(data: PlagiarismReportData): Prom
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8.5);
     doc.setTextColor(71, 85, 105);
-    const feedbackLines = doc.splitTextToSize(feedback, 168);
-    doc.text(feedbackLines, 22, 234);
+    const feedbackLines = doc.splitTextToSize(feedback, 158);
+    doc.text(feedbackLines, 27, 234);
 
 
     // =========================================================================
@@ -1402,7 +1447,7 @@ export async function generatePlagiarismReport(data: PlagiarismReportData): Prom
     doc.addPage();
     let currentY = 20;
 
-    // 1. Certificate Decorative Border
+    // 1. Certificate Decorative Border (Aligned strictly at x=20, width=170)
     // Outer rect
     doc.setDrawColor(124, 92, 252);
     doc.setLineWidth(0.8);
@@ -1475,7 +1520,7 @@ export async function generatePlagiarismReport(data: PlagiarismReportData): Prom
     // Move currentY to outside the border box for recommendations
     currentY += 125;
 
-    // 3. Recommendations Section
+    // 2. Recommendations Section
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(11);
     doc.setTextColor(30, 30, 46);
