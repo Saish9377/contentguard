@@ -17,7 +17,7 @@ module.exports = {
   exclude: ['/api/*'],
   transform: async (config, path) => {
     // Set higher priority for tool pages
-    const toolPages = ['/ai-detector', '/plagiarism-checker', '/grammar-checker', '/readability-checker', '/citation-generator', '/word-counter'];
+    const toolPages = ['/ai-detector', '/plagiarism-checker', '/grammar-checker', '/readability-checker', '/citation-generator', '/word-counter', '/humanizer'];
     const priority = path === '/' ? 1.0 : toolPages.includes(path) ? 0.9 : 0.7;
     
     return {

@@ -860,16 +860,8 @@ export async function generatePlagiarismReport(data: PlagiarismReportData): Prom
       paragraphCount,
       reportId,
       generatedAt,
-      aiScore = 0,
-      grammarScore = 95,
-      qualityScore = 90,
-      readabilityScore = 60,
-      readingLevel = 'College',
       tone = 'Neutral',
-      toneConfidence = 100,
-      avgSentenceLength = 15,
-      grammarErrors = 0,
-      plagiarismMatches = 0
+      toneConfidence = 100
     } = data;
 
     const dateStr = generatedAt.toISOString().split('T')[0];
@@ -882,6 +874,7 @@ export async function generatePlagiarismReport(data: PlagiarismReportData): Prom
 
     const exactScore = Math.min(similarityScore, Math.round((exactWords / totalWords) * 100));
     const partialScore = Math.max(0, similarityScore - exactScore);
+    const plagiarismMatches = matches ? matches.length : 0;
 
     const ctx = doc.context2d;
     

@@ -1,5 +1,6 @@
 import { AIDetectionResult, SentenceAnalysis } from '@/types/analysis';
 import { splitIntoSentences } from '@/lib/utils';
+import { queryHFOverallAI, queryHFBatchAI } from '@/lib/hf-client';
 
 /**
  * AI Content Detector — Statistical Heuristic Analysis
@@ -10,6 +11,9 @@ import { splitIntoSentences } from '@/lib/utils';
  * 3. Vocabulary richness (type-token ratio)
  * 4. Sentence uniformity (AI tends to be very uniform)
  * 5. Repetition patterns (n-gram repetition)
+ *
+ * When HF_TOKEN is configured server-side, the proxy at /api/hf/detect
+ * is used for higher accuracy — the token is never exposed to the browser.
  */
 
 // Common English word frequencies (top words for baseline comparison)
@@ -26,24 +30,25 @@ const COMMON_WORDS = new Set([
   'even', 'new', 'want', 'because', 'any', 'these', 'give', 'day', 'most', 'us',
 ]);
 
-// AI transition phrases that are commonly overused
-const AI_PHRASES = [
-  'in conclusion', 'furthermore', 'moreover', 'in addition', 'consequently',
-  'nevertheless', 'on the other hand', 'in other words', 'for instance',
-  'it is important to note', 'it is worth noting', 'it should be noted',
-  'in today\'s world', 'in the modern era', 'plays a crucial role',
-  'it is essential', 'significantly', 'comprehensive', 'facilitate',
-  'leverage', 'utilize', 'implement', 'enhance', 'ensure', 'crucial',
-  'pivotal', 'paramount', 'delve', 'tapestry', 'multifaceted',
-  'in this regard', 'as a result', 'therefore', 'thus', 'hence',
-  'accordingly', 'overall', 'ultimately', 'in summary', 'to summarize',
-  'it can be concluded', 'in light of', 'with regard to', 'pertaining to',
+// AI transition phrases commonly overused
+const AI_PHRASES_HIGH = [
+  'delve', 'tapestry', 'testament', 'multifaceted', 'beacon', 'symphony',
+  'cradle', 'seamlessly', 'leverage', 'resonate', 'pivotal', 'moreover',
+  'furthermore', 'not only', 'in conclusion', 'consequently'
 ];
 
-// Pre-compile AI transition phrase regexes globally to avoid overhead inside loops
-const AI_PHRASE_REGEXES = AI_PHRASES.map(phrase => 
-  new RegExp(phrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi')
-);
+const AI_PHRASES_MEDIUM = [
+  'in addition', 'nevertheless', 'on the other hand', 'in other words', 
+  'for instance', 'it is important to note', 'it is worth noting', 
+  'it should be noted', 'in today\'s world', 'in the modern era', 
+  'plays a crucial role', 'it is essential', 'significantly', 
+  'comprehensive', 'facilitate', 'utilize', 'implement', 'enhance', 
+  'ensure', 'crucial', 'paramount', 'in this regard', 'as a result', 
+  'therefore', 'thus', 'hence', 'accordingly', 'overall', 'ultimately', 
+  'in summary', 'to summarize', 'it can be concluded', 'in light of', 
+  'with regard to', 'pertaining to'
+];
+
 
 
 function getWords(text: string): string[] {
@@ -145,19 +150,63 @@ function measureSentenceUniformity(lengths: number[]): number {
  */
 function measureAIPhraseUsage(text: string): number {
   const lowerText = text.toLowerCase();
-  let phraseCount = 0;
+  let highCount = 0;
+  let medCount = 0;
 
-  for (const regex of AI_PHRASE_REGEXES) {
+  AI_PHRASES_HIGH.forEach(phrase => {
+    const regex = new RegExp(`\\b${phrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
     const matches = lowerText.match(regex);
-    if (matches) phraseCount += matches.length;
-  }
+    if (matches) highCount += matches.length;
+  });
+
+  AI_PHRASES_MEDIUM.forEach(phrase => {
+    const regex = new RegExp(`\\b${phrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
+    const matches = lowerText.match(regex);
+    if (matches) medCount += matches.length;
+  });
 
   const words = getWords(text);
-  const phraseRatio = words.length > 0 ? phraseCount / (words.length / 100) : 0;
+  if (words.length === 0) return 0;
+  
+  // High weight phrases have a 3.5x multiplier, medium have 1.2x multiplier
+  const totalWeightedPhrases = (highCount * 3.5) + (medCount * 1.2);
+  const phraseRatio = totalWeightedPhrases / (words.length / 100);
 
-  // High ratio = more AI-like
-  // Typical human: 0-3 per 100 words, AI: 3-8 per 100 words
-  return Math.min(100, Math.max(0, phraseRatio * 15));
+  // Typical human: ratio < 1.5. AI: ratio 3.0+.
+  return Math.min(100, Math.max(0, Math.round(phraseRatio * 25)));
+}
+
+/**
+ * Measure punctuation variety and uniformity.
+ */
+function measurePunctuationPatterns(text: string): number {
+  const totalWords = text.split(/\s+/).filter(Boolean).length;
+  if (totalWords < 20) return 50;
+
+  // 1. Check special punctuation presence
+  const exclamations = (text.match(/!/g) || []).length;
+  const dashes = (text.match(/[—–-]/g) || []).length;
+  const parens = (text.match(/[()]/g) || []).length;
+  const ellipses = (text.match(/\.\.\./g) || []).length;
+  const questions = (text.match(/\?/g) || []).length;
+  
+  const punchPoints = (exclamations > 0 ? 15 : 0) + (ellipses > 0 ? 20 : 0) + (dashes > 0 ? 10 : 0) + (parens > 0 ? 10 : 0) + (questions > 0 ? 10 : 0);
+  const punctuationVarietyScore = Math.max(0, 100 - (punchPoints * 1.5)); // 0 = diverse (human), 100 = rigid (AI)
+
+  // 2. Comma spacing uniformity
+  const commaSegments = text.split(',');
+  if (commaSegments.length > 3) {
+    const segmentLengths = commaSegments.map(seg => seg.split(/\s+/).filter(Boolean).length);
+    const mean = segmentLengths.reduce((a, b) => a + b, 0) / segmentLengths.length;
+    const variance = segmentLengths.reduce((sum, l) => sum + Math.pow(l - mean, 2), 0) / segmentLengths.length;
+    const stdDev = Math.sqrt(variance);
+    
+    if (stdDev < 3 && mean >= 4 && mean <= 15) {
+      return Math.round(0.4 * 100 + 0.6 * punctuationVarietyScore);
+    }
+  }
+
+  return Math.round(punctuationVarietyScore);
 }
 
 /**
@@ -190,7 +239,7 @@ function classifySentence(sentence: string): SentenceAnalysis {
       text: sentence,
       startIndex,
       endIndex,
-      aiProbability: 20,
+      aiProbability: 15,
       classification: 'human',
       confidence: 40,
     };
@@ -205,15 +254,15 @@ function classifySentence(sentence: string): SentenceAnalysis {
   const commonRatio = words.length > 0 ? commonCount / words.length : 0;
   const predictability = commonRatio * 100;
 
-  // Sentence length factor (AI tends to write 15-25 word sentences)
-  const lengthFactor = words.length >= 15 && words.length <= 25 ? 15 : 0;
+  // Sentence length factor (AI tends to write 14-26 word sentences)
+  const lengthFactor = words.length >= 14 && words.length <= 26 ? 20 : 0;
 
   // Combine signals
   const aiProbability = Math.min(100, Math.max(0,
-    phraseScore * 0.35 +
-    predictability * 0.30 +
+    phraseScore * 0.40 +
+    predictability * 0.35 +
     lengthFactor * 0.15 +
-    (100 - measureVocabularyRichness(words)) * 0.20
+    (100 - measureVocabularyRichness(words)) * 0.10
   ));
 
   let classification: 'human' | 'mixed' | 'ai';
@@ -227,14 +276,14 @@ function classifySentence(sentence: string): SentenceAnalysis {
     text: sentence,
     startIndex,
     endIndex,
-    aiProbability,
+    aiProbability: Math.round(aiProbability),
     classification,
-    confidence: Math.min(95, Math.max(20, confidence)),
+    confidence: Math.min(95, Math.max(20, Math.round(confidence))),
   };
 }
 
 /**
- * Main AI detection function.
+ * Detect likely model source based on vocabulary patterns.
  */
 function detectModelSource(text: string, aiScore: number): { chatgpt: number; gemini: number; claude: number; likelySource: string } {
   if (aiScore < 15) {
@@ -269,7 +318,6 @@ function detectModelSource(text: string, aiScore: number): { chatgpt: number; ge
 
   const total = gptCount + geminiCount + claudeCount;
   if (total === 0) {
-    // Default weights with some signature variation based on AI score
     const chatgpt = Math.round(50 + (aiScore % 10));
     const gemini = Math.round(25 - (aiScore % 5));
     const claude = 100 - chatgpt - gemini;
@@ -295,7 +343,6 @@ function generateRewriteSuggestions(sentences: SentenceAnalysis[]): { sentenceIn
       let suggestion = s.text;
       let reason = 'Sentence structure is highly predictable and characteristic of AI generation.';
 
-      // Try basic text replacement rules to "humanize" it
       const transitions = [
         { regex: /\bmoreover\b/gi, replacement: 'also' },
         { regex: /\bfurthermore\b/gi, replacement: 'in addition' },
@@ -318,14 +365,12 @@ function generateRewriteSuggestions(sentences: SentenceAnalysis[]): { sentenceIn
       if (modified) {
         reason = 'Overused AI transition words detected. Replaced with simpler terms to improve natural flow.';
       } else {
-        // Fallback: split or rephrase
         const words = s.text.split(/\s+/);
         if (words.length > 20) {
           reason = 'Long, overly structured sentence. Splitting it makes it more readable and human-like.';
           const mid = Math.floor(words.length / 2);
           suggestion = words.slice(0, mid).join(' ') + '. ' + words.slice(mid).join(' ');
         } else {
-          // Just make it active or simpler
           suggestion = 'For instance, ' + s.text.charAt(0).toLowerCase() + s.text.slice(1);
           reason = 'Adding introductory phrases and direct verbs can break up the robotic sentence rhythm.';
         }
@@ -343,97 +388,7 @@ function generateRewriteSuggestions(sentences: SentenceAnalysis[]): { sentenceIn
   return suggestions;
 }
 
-interface HFClassificationResult {
-  label: string;
-  score: number;
-}
-
-const hfAICache = new Map<string, number>();
-const hfAIBatchCache = new Map<string, number[]>();
-
-/**
- * Query Hugging Face Inference API for overall text AI probability.
- */
-async function queryHF_AIDetection(text: string, token: string): Promise<number | null> {
-  const cacheKey = text.trim();
-  if (hfAICache.has(cacheKey)) {
-    return hfAICache.get(cacheKey) ?? null;
-  }
-  
-  try {
-    const response = await fetch(
-      'https://api-inference.huggingface.co/models/roberta-base-openai-detector',
-      {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ inputs: text }),
-      }
-    );
-
-    if (!response.ok) {
-      throw new Error(`HF API error: ${response.status} ${response.statusText}`);
-    }
-
-    const data = await response.json();
-    const flatData: HFClassificationResult[] = Array.isArray(data[0]) ? data[0] : data;
-    const aiLabel = flatData.find((item) => item.label === 'LABEL_1');
-    if (aiLabel && typeof aiLabel.score === 'number') {
-      const score = Math.round(aiLabel.score * 100);
-      hfAICache.set(cacheKey, score);
-      return score;
-    }
-  } catch (error) {
-    console.error('Hugging Face AI Detection API failed, falling back to local heuristics:', error);
-  }
-  return null;
-}
-
-/**
- * Query Hugging Face Inference API for sentence-level AI probability in a single batch.
- */
-async function queryHF_AIDetectionBatch(sentences: string[], token: string): Promise<number[] | null> {
-  const cacheKey = sentences.join('|');
-  if (hfAIBatchCache.has(cacheKey)) {
-    return hfAIBatchCache.get(cacheKey) ?? null;
-  }
-
-  try {
-    const response = await fetch(
-      'https://api-inference.huggingface.co/models/roberta-base-openai-detector',
-      {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ inputs: sentences }),
-      }
-    );
-
-    if (!response.ok) {
-      throw new Error(`HF Batch API error: ${response.status} ${response.statusText}`);
-    }
-
-    const data = await response.json();
-    if (Array.isArray(data)) {
-      const scores = data.map((item) => {
-        const flatData: HFClassificationResult[] = Array.isArray(item) ? item : [item];
-        const aiLabel = flatData.find((lbl) => lbl.label === 'LABEL_1');
-        return aiLabel ? Math.round(aiLabel.score * 100) : 20;
-      });
-      hfAIBatchCache.set(cacheKey, scores);
-      return scores;
-    }
-  } catch (error) {
-    console.error('Hugging Face Batch AI Detection failed:', error);
-  }
-  return null;
-}
-
-export async function detectAI(text: string, hfToken?: string): Promise<AIDetectionResult> {
+export async function detectAI(text: string): Promise<AIDetectionResult> {
   if (!text || text.trim().length === 0) {
     return {
       aiScore: 0,
@@ -457,7 +412,7 @@ export async function detectAI(text: string, hfToken?: string): Promise<AIDetect
   const words = getWords(text);
   const sentences = splitIntoSentences(text);
 
-  // Calculate metrics
+  // Calculate local heuristic metrics
   const sentenceLengths = sentences.map(s => s.split(/\s+/).length);
   const perplexity = estimatePerplexity(words);
   const burstiness = measureBurstiness(sentenceLengths);
@@ -465,32 +420,40 @@ export async function detectAI(text: string, hfToken?: string): Promise<AIDetect
   const sentenceUniformity = measureSentenceUniformity(sentenceLengths);
   const repetitionScore = measureRepetition(words);
   const phraseUsage = measureAIPhraseUsage(text);
+  const punctuationPatternScore = measurePunctuationPatterns(text);
 
-  // Weighted AI score (Heuristic Fallback)
-  let aiScore = Math.min(100, Math.max(0, Math.round(
+  // Weighted local AI score (always calculated as baseline/fallback)
+  let localAiScore = Math.min(100, Math.max(0, Math.round(
     (100 - perplexity) * 0.15 +
-    (100 - burstiness) * 0.25 +
-    (100 - vocabularyRichness) * 0.15 +
-    (100 - sentenceUniformity) * 0.20 +
+    (100 - burstiness) * 0.20 +
+    (100 - vocabularyRichness) * 0.10 +
+    (100 - sentenceUniformity) * 0.15 +
     repetitionScore * 0.10 +
-    phraseUsage * 0.15
+    phraseUsage * 0.20 +
+    punctuationPatternScore * 0.10
   )));
 
-  // Hugging Face Accuracy Augmentation
-  if (hfToken) {
-    const hfScore = await queryHF_AIDetection(text, hfToken);
-    if (hfScore !== null) {
-      aiScore = hfScore;
-    }
+  // If very short text, cap the AI score to avoid false positives on short inputs
+  if (words.length < 15) {
+    localAiScore = Math.min(30, localAiScore);
+  }
+
+  let aiScore = localAiScore;
+
+  // Attempt server-side HF proxy for higher accuracy (non-blocking)
+  const hfScore = await queryHFOverallAI(text);
+  if (hfScore !== null) {
+    // Blend: local heuristics are the main engine (60% weight), HF acts as calibration overlay (40% weight)
+    aiScore = Math.round(localAiScore * 0.6 + hfScore * 0.4);
   }
 
   const humanScore = 100 - aiScore;
   const confidenceScore = Math.min(95, Math.max(30, Math.abs(aiScore - 50) * 1.5 + 30));
 
-  // Batch query sentences if HF token is set
+  // Batch sentence scoring via proxy
   let hfSentenceScores: number[] | null = null;
-  if (hfToken && sentences.length > 0) {
-    hfSentenceScores = await queryHF_AIDetectionBatch(sentences, hfToken);
+  if (sentences.length > 0) {
+    hfSentenceScores = await queryHFBatchAI(sentences);
   }
 
   // Analyze individual sentences
@@ -498,7 +461,7 @@ export async function detectAI(text: string, hfToken?: string): Promise<AIDetect
   const sentenceAnalyses: SentenceAnalysis[] = sentences.map((sentence, idx) => {
     const analysis = classifySentence(sentence);
     
-    // Override with Hugging Face score if available
+    // Override with HF score if available
     if (hfSentenceScores && hfSentenceScores[idx] !== undefined) {
       const sentenceAiProb = hfSentenceScores[idx];
       analysis.aiProbability = sentenceAiProb;
@@ -528,7 +491,6 @@ export async function detectAI(text: string, hfToken?: string): Promise<AIDetect
 
   const modelDetection = detectModelSource(text, aiScore);
   
-  // Calculate a composite Content Trust Score (higher is better)
   const trustScore = Math.max(0, Math.min(100, Math.round(
     100 - (aiScore * 0.6) - (repetitionScore * 0.2) + (burstiness * 0.1) + (perplexity * 0.1)
   )));

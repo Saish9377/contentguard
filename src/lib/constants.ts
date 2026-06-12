@@ -8,6 +8,7 @@ export const MAX_TEXT_LENGTH = 10 * 1000 * 1000; // 10M chars (virtually unlimit
 
 export const NAV_LINKS = [
   { label: 'AI Detector', href: '/ai-detector', icon: 'Scan' },
+  { label: 'Humanizer', href: '/humanizer', icon: 'Sparkles' },
   { label: 'Plagiarism', href: '/plagiarism-checker', icon: 'Search' },
   { label: 'Grammar', href: '/grammar-checker', icon: 'SpellCheck' },
   { label: 'Readability', href: '/readability-checker', icon: 'BookOpen' },
@@ -23,6 +24,13 @@ export const FEATURES = [
     icon: 'Scan',
     href: '/ai-detector',
     gradient: 'from-blue-500 to-cyan-500',
+  },
+  {
+    title: 'AI Text Humanizer',
+    description: 'Convert AI-generated text into natural, human-like writing to bypass AI detectors easily.',
+    icon: 'Sparkles',
+    href: '/humanizer',
+    gradient: 'from-purple-500 to-accent-purple',
   },
   {
     title: 'Plagiarism Checker',

@@ -2,16 +2,13 @@
 
 import { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { Hash, ShieldAlert } from 'lucide-react';
+import { Hash } from 'lucide-react';
 import { calculateWritingMetrics } from '@/lib/analysis/writing-metrics';
 import { AdSlot } from '@/components/layout/AdSlot';
 import { useDebounce } from '@/hooks/useDebounce';
 
-const FREE_WORD_LIMIT = 500;
-
 export function WordCounterClient() {
   const [text, setText] = useState('');
-  const [showFreemiumOverlay, setShowFreemiumOverlay] = useState(true);
 
   // Debounce the text value before running analysis metrics
   const debouncedText = useDebounce(text, 500);
@@ -28,8 +25,6 @@ export function WordCounterClient() {
     { label: 'Avg Word Length', value: metrics.averageWordLength, color: 'text-cyan-500', bg: 'bg-cyan-500/5 border-cyan-500/10' },
     { label: 'Avg Sentence Length', value: metrics.averageSentenceLength, color: 'text-teal-500', bg: 'bg-teal-500/5 border-teal-500/10' },
   ];
-
-  const wordCount = text.trim() ? text.trim().split(/\s+/).filter(Boolean).length : 0;
 
   return (
     <div className="container-wide py-10 sm:py-16">
@@ -54,10 +49,6 @@ export function WordCounterClient() {
             value={text}
             onChange={(e) => {
               setText(e.target.value);
-              // Reset overlay if they go back under the limit
-              if (e.target.value.trim().split(/\s+/).filter(Boolean).length <= FREE_WORD_LIMIT) {
-                setShowFreemiumOverlay(true);
-              }
             }}
             placeholder="Start typing or paste your text here..."
             className="w-full p-5 bg-transparent text-text-primary text-sm leading-relaxed resize-none focus:outline-none placeholder:text-text-muted focus:border-accent-purple/50 min-h-[200px] md:min-h-[300px]"

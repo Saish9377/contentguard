@@ -7,14 +7,15 @@ import {
   CheckCircle2, 
   Download,
   ExternalLink,
-  ChevronRight,
-  Loader2
+  Loader2,
+  Share2
 } from 'lucide-react';
-import { FullAnalysisResult, PlagiarismMatch } from '@/types/analysis';
+import { FullAnalysisResult } from '@/types/analysis';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { generatePlagiarismReport } from '@/lib/pdf-generator';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
+import { serializeReport } from '@/lib/report-helper';
 
 // Custom Count-Up Animation Hook supporting prefers-reduced-motion
 function useCountUp(endValue: number, duration: number = 600) {
@@ -23,7 +24,7 @@ function useCountUp(endValue: number, duration: number = 600) {
 
   useEffect(() => {
     if (prefersReducedMotion) {
-      setCount(endValue);
+      setTimeout(() => setCount(endValue), 0);
       return;
     }
 
@@ -97,7 +98,6 @@ export function PlagiarismResults({ result, onReset }: PlagiarismResultsProps) {
   // 2. Compute metrics
   const metrics = useMemo(() => {
     const similarity = plagiarism.similarityScore;
-    const originality = plagiarism.originalityScore;
 
     const exactMatchedWords = activeMatches
       .filter(m => m.matchPercentage >= 70)
@@ -113,7 +113,7 @@ export function PlagiarismResults({ result, onReset }: PlagiarismResultsProps) {
       partial,
       unique
     };
-  }, [activeMatches, totalWords, plagiarism.similarityScore, plagiarism.originalityScore]);
+  }, [activeMatches, totalWords, plagiarism.similarityScore]);
 
   const animatedSimilarity = useCountUp(metrics.similarity);
   const animatedExact = useCountUp(metrics.exact);
@@ -245,6 +245,28 @@ export function PlagiarismResults({ result, onReset }: PlagiarismResultsProps) {
     }
   };
 
+  const shareReport = () => {
+    try {
+      const base64 = serializeReport({
+        id: result.id,
+        type: 'plagiarism',
+        aiScore: result.aiDetection?.aiScore || 0,
+        originalityScore: result.plagiarism.originalityScore,
+        grammarScore: result.grammar?.grammarScore || 95,
+        qualityScore: result.qualityScore?.overallScore || 90,
+        wordCount: writingMetrics.wordCount,
+        timestamp: result.timestamp,
+        textPreview: (result.text || '').slice(0, 500),
+      });
+      const shareUrl = `${window.location.origin}/report?r=${base64}`;
+      navigator.clipboard.writeText(shareUrl);
+      toast.success('Shareable report link copied to clipboard!');
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to generate share link.');
+    }
+  };
+
   // SVG parameters for Donut Chart
   const r = 48;
   const circ = 2 * Math.PI * r; // 301.6
@@ -280,52 +302,64 @@ export function PlagiarismResults({ result, onReset }: PlagiarismResultsProps) {
           </button>
         </div>
         
-        {/* Export Button */}
-        <button
-          onClick={handleExportPDF}
-          disabled={exportStatus !== 'idle'}
-          className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-accent-purple to-accent-light-purple hover:shadow-[0_0_20px_rgba(124,92,252,0.3)] text-text-primary hover:text-white transition-all duration-300 flex items-center justify-center gap-2 cursor-pointer font-bold w-full sm:w-auto active:scale-95 disabled:opacity-85 disabled:cursor-not-allowed shadow-md overflow-hidden relative min-w-[170px] h-[42px]"
-        >
-          <AnimatePresence mode="wait">
-            {exportStatus === 'loading' ? (
-              <motion.span
-                key="loading"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                transition={{ duration: 0.2 }}
-                className="flex items-center gap-2 justify-center w-full"
-              >
-                <Loader2 className="w-4 h-4 animate-spin shrink-0" />
-                Exporting...
-              </motion.span>
-            ) : exportStatus === 'success' ? (
-              <motion.span
-                key="success"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                transition={{ duration: 0.2 }}
-                className="flex items-center gap-2 text-emerald-400 justify-center w-full font-bold"
-              >
-                <CheckCircle2 className="w-4 h-4 shrink-0" />
-                Report Downloaded!
-              </motion.span>
-            ) : (
-              <motion.span
-                key="idle"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                transition={{ duration: 0.2 }}
-                className="flex items-center gap-2 justify-center w-full"
-              >
-                <Download className="w-4 h-4 shrink-0" />
-                Export Report
-              </motion.span>
-            )}
-          </AnimatePresence>
-        </button>
+        {/* Buttons Wrapper */}
+        <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto shrink-0">
+          {/* Share Button */}
+          <button
+            onClick={shareReport}
+            className="px-5 py-2.5 rounded-xl border border-border-custom bg-bg-card text-text-muted hover:text-text-primary hover:bg-bg-input transition-all duration-300 flex items-center justify-center gap-2 cursor-pointer font-bold active:scale-95 shadow-sm h-[42px]"
+          >
+            <Share2 className="w-4.5 h-4.5" />
+            Share Report
+          </button>
+
+          {/* Export Button */}
+          <button
+            onClick={handleExportPDF}
+            disabled={exportStatus !== 'idle'}
+            className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-accent-purple to-accent-light-purple hover:shadow-[0_0_20px_rgba(124,92,252,0.3)] text-text-primary hover:text-white transition-all duration-300 flex items-center justify-center gap-2 cursor-pointer font-bold w-full sm:w-auto active:scale-95 disabled:opacity-85 disabled:cursor-not-allowed shadow-md overflow-hidden relative min-w-[170px] h-[42px]"
+          >
+            <AnimatePresence mode="wait">
+              {exportStatus === 'loading' ? (
+                <motion.span
+                  key="loading"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  transition={{ duration: 0.2 }}
+                  className="flex items-center gap-2 justify-center w-full"
+                >
+                  <Loader2 className="w-4 h-4 animate-spin shrink-0" />
+                  Exporting...
+                </motion.span>
+              ) : exportStatus === 'success' ? (
+                <motion.span
+                  key="success"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  transition={{ duration: 0.2 }}
+                  className="flex items-center gap-2 text-emerald-400 justify-center w-full font-bold"
+                >
+                  <CheckCircle2 className="w-4 h-4 shrink-0" />
+                  Report Downloaded!
+                </motion.span>
+              ) : (
+                <motion.span
+                  key="idle"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  transition={{ duration: 0.2 }}
+                  className="flex items-center gap-2 justify-center w-full"
+                >
+                  <Download className="w-4 h-4 shrink-0" />
+                  Export Report
+                </motion.span>
+              )}
+            </AnimatePresence>
+          </button>
+        </div>
       </div>
 
       {/* 2. Main Score Card (Single unified dark card, border-radius: 16px) */}
@@ -693,7 +727,7 @@ export function PlagiarismResults({ result, onReset }: PlagiarismResultsProps) {
 
                           {/* Matched Text Snippet */}
                           <p className="text-xs italic text-text-muted bg-bg-input/30 p-2.5 rounded border border-border-custom/30 leading-relaxed font-serif">
-                            "{match.text}"
+                            &ldquo;{match.text}&rdquo;
                           </p>
                         </motion.div>
                       );

@@ -78,6 +78,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ text: text.trim(), fileName: file.name });
   } catch (error) {
     console.error('Upload error:', error);
-    return NextResponse.json({ error: 'Failed to process file.' }, { status: 500 });
+    const message = error instanceof Error ? error.message : 'Failed to process file.';
+    return NextResponse.json({ error: message }, { status: 422 });
   }
 }

@@ -14,7 +14,6 @@ interface FileUploadProps {
 export function FileUpload({ onTextExtracted, onClear, disabled = false }: FileUploadProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [file, setFile] = useState<File | null>(null);
-  const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -28,7 +27,7 @@ export function FileUpload({ onTextExtracted, onClear, disabled = false }: FileU
     ? { type: 'tween' as const, duration: 0 } 
     : { type: 'spring' as const, stiffness: 300, damping: 25 };
 
-  const startProgress = () => {
+  const startProgress = useCallback(() => {
     setUploadProgress(0);
     setIsUploadComplete(false);
     
@@ -52,11 +51,25 @@ export function FileUpload({ onTextExtracted, onClear, disabled = false }: FileU
     };
     
     requestAnimationFrame(animate);
+  }, [onTextExtracted]);
+
+  const uploadToServer = async (fileToUpload: File): Promise<string> => {
+    const formData = new FormData();
+    formData.append('file', fileToUpload);
+    const response = await fetch('/api/upload', {
+      method: 'POST',
+      body: formData,
+    });
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || 'Server extraction failed.');
+    }
+    const data = await response.json();
+    return data.text;
   };
 
   const processFile = useCallback(async (selectedFile: File) => {
     setError(null);
-    setIsProcessing(true);
     setFile(selectedFile);
     setUploadProgress(0);
     setIsUploadComplete(false);
@@ -76,11 +89,21 @@ export function FileUpload({ onTextExtracted, onClear, disabled = false }: FileU
       if (ext === '.txt') {
         text = await selectedFile.text();
       } else if (ext === '.pdf') {
-        const { extractTextFromPDF } = await import('@/lib/client-file-parser');
-        text = await extractTextFromPDF(selectedFile);
+        try {
+          const { extractTextFromPDF } = await import('@/lib/client-file-parser');
+          text = await extractTextFromPDF(selectedFile);
+        } catch (clientErr) {
+          console.warn('Client PDF parser failed, falling back to server-side parser:', clientErr);
+          text = await uploadToServer(selectedFile);
+        }
       } else if (ext === '.docx') {
-        const { extractTextFromDOCX } = await import('@/lib/client-file-parser');
-        text = await extractTextFromDOCX(selectedFile);
+        try {
+          const { extractTextFromDOCX } = await import('@/lib/client-file-parser');
+          text = await extractTextFromDOCX(selectedFile);
+        } catch (clientErr) {
+          console.warn('Client DOCX parser failed, falling back to server-side parser:', clientErr);
+          text = await uploadToServer(selectedFile);
+        }
       }
 
       if (!text || text.trim().length === 0) {
@@ -100,10 +123,8 @@ export function FileUpload({ onTextExtracted, onClear, disabled = false }: FileU
       const message = err instanceof Error ? err.message : 'Unknown error processing file.';
       setError(message);
       setFile(null);
-    } finally {
-      setIsProcessing(false);
     }
-  }, [onTextExtracted]);
+  }, [startProgress]);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -141,7 +162,7 @@ export function FileUpload({ onTextExtracted, onClear, disabled = false }: FileU
             key="upload-zone"
             initial={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.95 }}
-            transition={{ duration: prefersReducedMotion ? 0 : 0.2, ease: 'easeOut' as any }}
+            transition={{ duration: prefersReducedMotion ? 0 : 0.2, ease: 'easeOut' }}
             onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
             onDragLeave={() => setIsDragging(false)}
             onDrop={handleDrop}
@@ -175,7 +196,7 @@ export function FileUpload({ onTextExtracted, onClear, disabled = false }: FileU
                 default: { y: 0 },
                 dragOver: { y: -6 }
               }}
-              transition={springTransition as any}
+              transition={springTransition}
             >
               <Upload className="w-8 h-8 mb-3 text-accent-purple" />
             </motion.div>

@@ -2,19 +2,16 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
-import { Search, Zap, ShieldAlert, Download, Loader2, CheckCircle2 } from 'lucide-react';
+import { Search, Zap, Loader2, CheckCircle2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { FileUpload } from '@/components/analysis/FileUpload';
 import { useDebounce } from '@/hooks/useDebounce';
 import { analyzeReadability } from '@/lib/analysis/readability';
 import { calculateWritingMetrics } from '@/lib/analysis/writing-metrics';
 import { analyzeTone } from '@/lib/analysis/tone-analyzer';
-import { generatePlagiarismReport } from '@/lib/pdf-generator';
 import { PlagiarismResults } from '@/components/analysis/PlagiarismResults';
-import { toast } from 'sonner';
 import { FullAnalysisResult, PlagiarismResult } from '@/types/analysis';
-
-const FREE_WORD_LIMIT = 500;
+import { useHistory, getHistoryItem } from '@/hooks/useHistory';
 
 export function PlagiarismClient() {
   const [text, setText] = useState('');
@@ -22,15 +19,35 @@ export function PlagiarismClient() {
   
   // Custom analysis state (worker based)
   const [status, setStatus] = useState<'idle' | 'analyzing' | 'complete' | 'error'>('idle');
-  const [progress, setProgress] = useState(0);
   const [result, setResult] = useState<FullAnalysisResult | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [showFreemiumOverlay, setShowFreemiumOverlay] = useState(true);
-  const [isExporting, setIsExporting] = useState(false);
+  const { save: saveHistory } = useHistory();
+
+  // Load history item from IndexedDB if query param historyId is set
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const historyId = params.get('historyId');
+    if (historyId) {
+      getHistoryItem(historyId).then((scan) => {
+        if (scan) {
+          setText(scan.text || '');
+          setResult(scan);
+          setStatus('complete');
+          
+          // Clear query parameters
+          const newUrl = window.location.pathname;
+          window.history.replaceState({ path: newUrl }, '', newUrl);
+        }
+      }).catch((err) => console.error('Error loading history scan:', err));
+    }
+  }, []);
 
   const prefersReducedMotion = useReducedMotion();
   const prefersReducedMotionRef = useRef(false);
-  prefersReducedMotionRef.current = !!prefersReducedMotion;
+  useEffect(() => {
+    prefersReducedMotionRef.current = !!prefersReducedMotion;
+  }, [prefersReducedMotion]);
 
   // Visual checklist scanning progress
   const [activeStep, setActiveStep] = useState(0);
@@ -45,52 +62,8 @@ export function PlagiarismClient() {
 
   const debouncedText = useDebounce(text, 500);
 
-  const handleExportPDF = async () => {
-    if (!result) return;
-    setIsExporting(true);
-    try {
-      const plagiarismReportData = {
-        text: result.text,
-        originalityScore: result.plagiarism.originalityScore,
-        similarityScore: result.plagiarism.similarityScore,
-        matches: result.plagiarism.matches.map(m => ({
-          text: m.text,
-          matchPercentage: m.matchPercentage,
-          source: m.source,
-          url: m.url,
-          startIndex: m.startIndex || 0,
-          endIndex: m.endIndex || 0,
-        })),
-        wordCount: result.writingMetrics.wordCount,
-        characterCount: result.writingMetrics.characterCount,
-        sentenceCount: result.writingMetrics.sentenceCount,
-        paragraphCount: result.writingMetrics.paragraphCount,
-        reportId: result.id,
-        generatedAt: new Date(result.timestamp),
-        
-        // Premium fields
-        aiScore: result.aiDetection.aiScore,
-        grammarScore: result.grammar.grammarScore,
-        qualityScore: result.qualityScore.overallScore,
-        readabilityScore: result.readability.fleschReadingEase,
-        readingLevel: result.readability.readingLevel,
-        tone: result.tone ? result.tone.tone : 'Neutral',
-        toneConfidence: result.tone ? result.tone.score : 100,
-        avgSentenceLength: result.writingMetrics.averageSentenceLength,
-        grammarErrors: result.grammar.errorCount,
-        plagiarismMatches: result.plagiarism.matches.length
-      };
-      await generatePlagiarismReport(plagiarismReportData);
-      toast.success('Plagiarism report downloaded successfully!');
-    } catch (err) {
-      console.error('Failed to generate plagiarism report:', err);
-      toast.error('Failed to export plagiarism report.');
-    } finally {
-      setIsExporting(false);
-    }
-  };
-
   const workerRef = useRef<Worker | null>(null);
+  const activeJobIdRef = useRef<string | null>(null);
 
   // Initialize Web Worker
   useEffect(() => {
@@ -99,15 +72,19 @@ export function PlagiarismClient() {
     );
 
     workerRef.current.onmessage = (event) => {
-      const { type, result: plagiarismResult, error: workerError } = event.data;
+      const { type, result: plagiarismResult, text: returnedText, jobId, error: workerError } = event.data;
+
+      // Shield: ignore responses from outdated jobs
+      if (jobId !== activeJobIdRef.current) return;
 
       if (type === 'success') {
         const plagResult = plagiarismResult as PlagiarismResult;
+        const targetText = returnedText || '';
         
         // Compute lightweight results on client thread
-        const readability = analyzeReadability(text);
-        const writingMetrics = calculateWritingMetrics(text);
-        const tone = analyzeTone(text);
+        const readability = analyzeReadability(targetText);
+        const writingMetrics = calculateWritingMetrics(targetText);
+        const tone = analyzeTone(targetText);
         
         const overallScore = Math.max(0, Math.min(100, Math.round(
           plagResult.originalityScore * 0.5 + readability.fleschReadingEase * 0.3 + 20
@@ -115,7 +92,7 @@ export function PlagiarismClient() {
 
         const fullResult: FullAnalysisResult = {
           id: 'local-plag-' + Date.now(),
-          text,
+          text: targetText,
           timestamp: new Date().toISOString(),
           aiDetection: {
             aiScore: 0,
@@ -162,9 +139,9 @@ export function PlagiarismClient() {
 
         if (activeStepRef.current >= 4 || prefersReducedMotionRef.current) {
           setResult(fullResult);
-          setProgress(100);
           setStatus('complete');
-          setShowFreemiumOverlay(true);
+          // Save to local history (silent)
+          saveHistory(fullResult).catch(() => {});
           if (activeStepIntervalRef.current) {
             clearInterval(activeStepIntervalRef.current);
             activeStepIntervalRef.current = null;
@@ -173,7 +150,6 @@ export function PlagiarismClient() {
       } else {
         setError(workerError || 'Plagiarism analysis failed');
         setStatus('error');
-        setProgress(0);
         if (activeStepIntervalRef.current) {
           clearInterval(activeStepIntervalRef.current);
           activeStepIntervalRef.current = null;
@@ -182,15 +158,20 @@ export function PlagiarismClient() {
     };
 
     return () => {
+      if (activeStepIntervalRef.current) {
+        clearInterval(activeStepIntervalRef.current);
+      }
       workerRef.current?.terminate();
     };
-  }, [text]);
+  }, [saveHistory]);
 
-  const handleAnalyze = () => {
+  const handleAnalyze = async () => {
     if (!debouncedText.trim() || debouncedText.trim().split(/\s+/).length < 10) return;
     
+    const jobId = 'plag-job-' + Date.now() + '-' + Math.random().toString(36).substring(2, 9);
+    activeJobIdRef.current = jobId;
+
     setStatus('analyzing');
-    setProgress(15);
     setError(null);
     setActiveStep(0);
     isWorkerFinishedRef.current = false;
@@ -207,7 +188,6 @@ export function PlagiarismClient() {
       activeStepIntervalRef.current = setInterval(() => {
         currentStep += 1;
         setActiveStep(currentStep);
-        setProgress(Math.min(15 + currentStep * 20, 90));
         
         if (currentStep >= 4) {
           if (activeStepIntervalRef.current) {
@@ -216,28 +196,44 @@ export function PlagiarismClient() {
           }
           if (isWorkerFinishedRef.current && pendingResultRef.current) {
             setResult(pendingResultRef.current);
-            setProgress(100);
             setStatus('complete');
-            setShowFreemiumOverlay(true);
           }
         }
       }, 800);
     }
 
-    const token = process.env.NEXT_PUBLIC_HF_TOKEN || undefined;
+    // Fetch real web search results for richer plagiarism matching
+    // This runs concurrently with the progress animation.
+    // Failures are silenced — the worker will still use local heuristics.
+    let webSearchResults = [];
+    try {
+      const sentences = debouncedText.match(/[^.!?]+[.!?]+/g) || [];
+      const res = await fetch('/api/plagiarism/search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sentences }),
+        signal: AbortSignal.timeout(7000),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        webSearchResults = data.results ?? [];
+      }
+    } catch {
+      // Silent fallback — local analysis still runs
+    }
 
-    // Send task to worker
+    // Send task to worker (webSearchResults may be empty if search failed)
     workerRef.current?.postMessage({
       type: 'plagiarism',
       text: debouncedText,
-      token,
+      webSearchResults,
+      jobId,
     });
   };
 
   const reset = () => {
     setText('');
     setStatus('idle');
-    setProgress(0);
     setResult(null);
     setError(null);
     setActiveStep(0);

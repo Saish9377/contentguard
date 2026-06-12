@@ -11,16 +11,20 @@ import {
   BookOpen,
   Quote,
   Hash,
+  Sparkles,
   Menu,
   X,
   Shield,
   ArrowRight,
   Sun,
   Moon,
+  History,
 } from 'lucide-react';
 import { NAV_LINKS } from '@/lib/constants';
 import { cn } from '@/lib/utils';
 import { useTheme } from '@/components/layout/ThemeProvider';
+import { HistoryDrawer } from '@/components/layout/HistoryDrawer';
+import { getHistory } from '@/hooks/useHistory';
 
 const iconMap: Record<string, React.ElementType> = {
   Scan,
@@ -29,13 +33,21 @@ const iconMap: Record<string, React.ElementType> = {
   BookOpen,
   Quote,
   Hash,
+  Sparkles,
 };
 
 export function Header() {
   const pathname = usePathname();
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyCount, setHistoryCount] = useState(0);
   const { theme, toggleTheme } = useTheme();
+
+  // Load history count for badge
+  useEffect(() => {
+    getHistory().then(scans => setHistoryCount(scans.length)).catch(() => {});
+  }, [historyOpen]);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -61,8 +73,8 @@ export function Header() {
     };
   }, [isMobileMenuOpen]);
 
-  // Links to display in Header (first 6 links as specified in prompt)
-  const headerLinks = NAV_LINKS.slice(0, 6);
+  // Links to display in Header (first 7 links as specified in prompt)
+  const headerLinks = NAV_LINKS.slice(0, 7);
 
   return (
     <>
@@ -114,6 +126,20 @@ export function Header() {
               })}
             </nav>
 
+            {/* History Button Desktop */}
+            <button
+              onClick={() => setHistoryOpen(true)}
+              className="relative p-2.5 rounded-xl border border-border-custom bg-bg-card hover:bg-bg-input text-text-muted hover:text-text-primary transition-all duration-200 cursor-pointer active:scale-95"
+              aria-label="View scan history"
+            >
+              <History className="w-4 h-4" />
+              {historyCount > 0 && (
+                <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-accent-purple text-[9px] font-bold text-white flex items-center justify-center">
+                  {historyCount > 9 ? '9+' : historyCount}
+                </span>
+              )}
+            </button>
+
             {/* Dark/Light Toggler Desktop */}
             <button
               onClick={toggleTheme}
@@ -130,6 +156,20 @@ export function Header() {
 
           {/* Mobile Hamburger & Toggler */}
           <div className="lg:hidden flex items-center gap-2">
+            {/* History Button Mobile */}
+            <button
+              onClick={() => setHistoryOpen(true)}
+              className="relative p-2.5 rounded-xl bg-bg-card border border-border-custom/50 hover:bg-bg-input text-text-muted hover:text-text-primary transition-all cursor-pointer"
+              aria-label="View scan history"
+            >
+              <History className="w-4 h-4" />
+              {historyCount > 0 && (
+                <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-accent-purple text-[9px] font-bold text-white flex items-center justify-center">
+                  {historyCount > 9 ? '9+' : historyCount}
+                </span>
+              )}
+            </button>
+
             {/* Dark/Light Toggler Mobile */}
             <button
               onClick={toggleTheme}
@@ -234,6 +274,9 @@ export function Header() {
 
       {/* Spacer */}
       <div className="h-16 lg:h-20" />
+
+      {/* History Drawer */}
+      <HistoryDrawer open={historyOpen} onClose={() => setHistoryOpen(false)} />
     </>
   );
 }

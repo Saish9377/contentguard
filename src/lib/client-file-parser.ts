@@ -48,6 +48,15 @@ export async function extractTextFromPDF(file: File): Promise<string> {
   return result;
 }
 
+function decodeXmlEntities(str: string): string {
+  return str
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'");
+}
+
 /**
  * Extract text from a DOCX file using jszip.
  * DOCX = ZIP archive containing XML files.
@@ -74,7 +83,7 @@ export async function extractTextFromDOCX(file: File): Promise<string> {
     const wtRegex = /<w:t[^>]*>([^<]*)<\/w:t>/g;
     let m: RegExpExecArray | null;
     while ((m = wtRegex.exec(para)) !== null) {
-      runs.push(m[1]);
+      runs.push(decodeXmlEntities(m[1]));
     }
     if (runs.length > 0) {
       textParts.push(runs.join(''));

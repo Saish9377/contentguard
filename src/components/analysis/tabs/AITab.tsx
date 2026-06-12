@@ -7,11 +7,11 @@ import { AIHeatmap } from '../AIHeatmap';
 
 interface AITabProps {
   aiDetection: AIDetectionResult;
-  readability: ReadabilityResult;
-  text: string;
+  readability?: ReadabilityResult;
+  text?: string;
 }
 
-export default function AITab({ aiDetection, readability, text }: AITabProps) {
+export default function AITab({ aiDetection }: AITabProps) {
   return (
     <div className="space-y-5">
       {/* AI Detection Summary */}
@@ -54,7 +54,7 @@ export default function AITab({ aiDetection, readability, text }: AITabProps) {
           ))}
         </div>
 
-        <AIHeatmap sentences={aiDetection.sentences} originalText={text} />
+        <AIHeatmap sentences={aiDetection.sentences} />
       </div>
 
       {/* Advanced Insights */}

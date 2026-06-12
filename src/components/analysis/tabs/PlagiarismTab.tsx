@@ -3,7 +3,6 @@
 import { useState, useMemo } from 'react';
 import { 
   FileText, 
-  AlertTriangle, 
   CheckCircle2, 
   Copy, 
   Check, 
@@ -12,7 +11,7 @@ import {
   Eye, 
   Quote
 } from 'lucide-react';
-import { PlagiarismResult, PlagiarismMatch } from '@/types/analysis';
+import { PlagiarismResult } from '@/types/analysis';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 

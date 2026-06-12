@@ -7,5 +7,12 @@ interface AdSlotProps {
 }
 
 export function AdSlot({ slotId = 'placeholder', format = 'auto', className = '' }: AdSlotProps) {
-  return null;
+  return (
+    <div 
+      className={className} 
+      data-ad-slot={slotId} 
+      data-ad-format={format} 
+      style={{ display: 'none' }} 
+    />
+  );
 }

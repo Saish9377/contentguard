@@ -1,9 +1,20 @@
 import { GrammarResult, GrammarError } from '@/types/analysis';
 
 /**
- * Grammar Checker — Pattern-based Grammar Analysis
- * 
- * Detects common grammar, spelling, and style issues using pattern matching.
+ * Grammar Checker — Two-Layer Analysis
+ *
+ * Layer 1 (sync, instant): Pattern-based regex rules
+ *   Catches: double words, a/an errors, subject-verb agreement, common misspellings,
+ *   punctuation issues, passive voice, wordy phrases.
+ *
+ * Layer 2 (async, ~300ms): LanguageTool public API
+ *   Catches: homophones (their/there/they're), wrong prepositions, complex agreement,
+ *   contextual spelling errors, style suggestions, and much more.
+ *   Endpoint: https://api.languagetool.org/v2/check
+ *   No API key required; free public tier, ~20 requests/min.
+ *
+ * checkGrammarWithNLP() runs both layers and merges results.
+ * checkGrammarLocal() runs only Layer 1 (sync, for use in client-side contexts).
  */
 
 interface PatternRule {
@@ -102,6 +113,13 @@ const GRAMMAR_RULES: PatternRule[] = [
     message: 'Possible misspelling.',
     suggestion: () => ['accommodate'],
   },
+  {
+    pattern: /\b(alot)\b/gi,
+    type: 'spelling',
+    severity: 'error',
+    message: '"alot" is not a word — did you mean "a lot"?',
+    suggestion: () => ['a lot'],
+  },
   // Punctuation issues
   {
     pattern: /\s+[,.:;!?]/g,
@@ -157,9 +175,10 @@ const GRAMMAR_RULES: PatternRule[] = [
 ];
 
 /**
- * Check grammar on the given text.
+ * Layer 1: Synchronous regex-based grammar check.
+ * Runs instantly with no network calls.
  */
-export function checkGrammar(text: string): GrammarResult {
+export function checkGrammarLocal(text: string): GrammarResult {
   if (!text || text.trim().length === 0) {
     return {
       errors: [],
@@ -167,6 +186,7 @@ export function checkGrammar(text: string): GrammarResult {
       warningCount: 0,
       suggestionCount: 0,
       grammarScore: 100,
+      isNLPEnhanced: false,
     };
   }
 
@@ -189,12 +209,11 @@ export function checkGrammar(text: string): GrammarResult {
         suggestions,
       });
 
-      // Prevent infinite loops on zero-length matches
       if (match[0].length === 0) break;
     }
   }
 
-  // Check sentence capitalization
+  // Sentence capitalization check
   const sentenceRegex = /[^.!?]+(?:[.!?]+|$)/g;
   let sMatch: RegExpExecArray | null;
   while ((sMatch = sentenceRegex.exec(text)) !== null) {
@@ -204,7 +223,6 @@ export function checkGrammar(text: string): GrammarResult {
       const trimOffset = sentenceText.indexOf(trimmed);
       const offset = sMatch.index + trimOffset;
       
-      // Check if it's the start of a sentence (either start of text, or first non-whitespace character backwards is sentence punctuation)
       let isSentenceStart = (offset === 0);
       if (!isSentenceStart) {
         let ptr = offset - 1;
@@ -230,30 +248,157 @@ export function checkGrammar(text: string): GrammarResult {
     }
   }
 
-  // Sort by offset
-  errors.sort((a, b) => a.offset - b.offset);
+  return buildResult(errors, false);
+}
 
-  // Remove duplicates (same offset)
-  const uniqueErrors = errors.filter((error, index) => {
-    if (index === 0) return true;
-    return error.offset !== errors[index - 1].offset;
+// ─── LanguageTool API Integration ─────────────────────────────────────────────
+
+interface LTMatch {
+  message: string;
+  offset: number;
+  length: number;
+  replacements: { value: string }[];
+  rule: {
+    id: string;
+    category: { id: string };
+    issueType?: string;
+  };
+  context: {
+    text: string;
+    offset: number;
+    length: number;
+  };
+}
+
+interface LTResponse {
+  matches: LTMatch[];
+}
+
+// Category → our GrammarError type mapping
+function ltCategoryToType(rule: LTMatch['rule']): GrammarError['type'] {
+  const cat = rule.category?.id ?? '';
+  const issueType = rule.issueType ?? '';
+  if (cat === 'TYPOS' || issueType === 'misspelling') return 'spelling';
+  if (cat === 'PUNCTUATION') return 'punctuation';
+  if (cat === 'STYLE' || cat === 'REDUNDANCY') return 'style';
+  return 'grammar';
+}
+
+function ltIssueTypeToSeverity(rule: LTMatch['rule']): GrammarError['severity'] {
+  const issueType = rule.issueType ?? '';
+  if (issueType === 'style' || issueType === 'locale-violation') return 'suggestion';
+  if (issueType === 'duplication' || issueType === 'whitespace') return 'warning';
+  return 'error';
+}
+
+async function fetchLanguageTool(text: string): Promise<LTMatch[]> {
+  const body = new URLSearchParams({
+    text,
+    language: 'en-US',
+    disabledRules: 'WHITESPACE_RULE,EN_QUOTES', // suppress trivial rules
   });
 
-  const errorCount = uniqueErrors.filter(e => e.severity === 'error').length;
-  const warningCount = uniqueErrors.filter(e => e.severity === 'warning').length;
-  const suggestionCount = uniqueErrors.filter(e => e.severity === 'suggestion').length;
+  const response = await fetch('https://api.languagetool.org/v2/check', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: body.toString(),
+    signal: AbortSignal.timeout(6000),
+  });
 
-  // Calculate grammar score
-  const totalIssues = errorCount * 3 + warningCount * 1.5 + suggestionCount * 0.5;
-  const wordCount = text.split(/\s+/).length;
-  const issueRate = wordCount > 0 ? totalIssues / wordCount : 0;
-  const grammarScore = Math.max(0, Math.min(100, Math.round(100 - issueRate * 500)));
+  if (!response.ok) {
+    throw new Error(`LanguageTool API error: ${response.status}`);
+  }
+
+  const data: LTResponse = await response.json();
+  return data.matches ?? [];
+}
+
+// ─── Build Result ──────────────────────────────────────────────────────────────
+
+function buildResult(errors: GrammarError[], isNLPEnhanced: boolean): GrammarResult {
+  // Sort and deduplicate by offset
+  errors.sort((a, b) => a.offset - b.offset);
+  const unique = errors.filter((e, i) => {
+    if (i === 0) return true;
+    return e.offset !== errors[i - 1].offset;
+  });
+
+  const errorCount = unique.filter(e => e.severity === 'error').length;
+  const warningCount = unique.filter(e => e.severity === 'warning').length;
+  const suggestionCount = unique.filter(e => e.severity === 'suggestion').length;
+
+  // Penalty-based score: deduct from 100 per issue type
+  // Each error = -3, warning = -1.5, suggestion = -0.5 (capped at 0)
+  const penalty = errorCount * 3 + warningCount * 1.5 + suggestionCount * 0.5;
+  const grammarScore = Math.max(0, Math.min(100, Math.round(100 - penalty)));
 
   return {
-    errors: uniqueErrors,
+    errors: unique,
     errorCount,
     warningCount,
     suggestionCount,
     grammarScore,
+    isNLPEnhanced,
   };
+}
+
+
+/**
+ * Layer 1 + Layer 2: Async grammar check with NLP enhancement.
+ * Combines regex rules with LanguageTool context-aware analysis.
+ * Falls back gracefully to local-only results if LT API is unavailable.
+ */
+export async function checkGrammarWithNLP(text: string): Promise<GrammarResult> {
+  if (!text || text.trim().length === 0) {
+    return {
+      errors: [],
+      errorCount: 0,
+      warningCount: 0,
+      suggestionCount: 0,
+      grammarScore: 100,
+      isNLPEnhanced: false,
+    };
+  }
+
+  // Layer 1: instant regex results
+  const localResult = checkGrammarLocal(text);
+
+  // Layer 2: LanguageTool NLP (async)
+  let ltMatches: LTMatch[] = [];
+  try {
+    // LanguageTool accepts up to ~40,000 chars on the free public endpoint
+    ltMatches = await fetchLanguageTool(text.slice(0, 40000));
+  } catch {
+    // Silently fall back to local-only results
+    return localResult;
+  }
+
+  // Convert LT matches to our GrammarError format
+  const ltErrors: GrammarError[] = ltMatches.map(match => ({
+    message: match.message,
+    type: ltCategoryToType(match.rule),
+    severity: ltIssueTypeToSeverity(match.rule),
+    offset: match.offset,
+    length: match.length,
+    originalText: text.substring(match.offset, match.offset + match.length),
+    suggestions: match.replacements.slice(0, 3).map(r => r.value),
+  }));
+
+  // Merge: prefer LT errors over regex errors at the same offset (LT is more accurate)
+  const ltOffsets = new Set(ltErrors.map(e => e.offset));
+
+  // Keep local errors that LT didn't find, and all LT errors
+  const filteredLocal = localResult.errors.filter(e => !ltOffsets.has(e.offset));
+  const merged = [...filteredLocal, ...ltErrors];
+
+
+  return buildResult(merged, true);
+}
+
+/**
+ * @deprecated Use checkGrammarWithNLP() for full NLP analysis or checkGrammarLocal() for sync-only.
+ * This alias exists for backward compatibility.
+ */
+export function checkGrammar(text: string): GrammarResult {
+  return checkGrammarLocal(text);
 }

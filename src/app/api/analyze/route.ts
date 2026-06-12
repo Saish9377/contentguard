@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { detectAI } from '@/lib/analysis/ai-detector';
 import { checkPlagiarism } from '@/lib/analysis/plagiarism-checker';
-import { checkGrammar } from '@/lib/analysis/grammar-checker';
+import { checkGrammarWithNLP } from '@/lib/analysis/grammar-checker';
 import { analyzeReadability } from '@/lib/analysis/readability';
 import { calculateWritingMetrics } from '@/lib/analysis/writing-metrics';
 import { analyzeEssayStructure } from '@/lib/analysis/essay-structure';
@@ -37,12 +37,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const hfToken = process.env.NEXT_PUBLIC_HF_TOKEN || undefined;
+    // Run all analyses concurrently where possible
+    // detectAI and checkGrammarWithNLP make async API calls; run them in parallel
+    const [aiDetection, plagiarism, grammar] = await Promise.all([
+      detectAI(text),
+      checkPlagiarism(text),          // HF token handled via /api/hf/detect proxy
+      checkGrammarWithNLP(text),      // LanguageTool NLP + local regex
+    ]);
 
-    // Run all analyses (await the async ones)
-    const aiDetection = await detectAI(text, hfToken);
-    const plagiarism = await checkPlagiarism(text, hfToken);
-    const grammar = checkGrammar(text);
+    // Synchronous analyses (no network calls)
     const readability = analyzeReadability(text);
     const writingMetrics = calculateWritingMetrics(text);
     const essayStructure = analyzeEssayStructure(text);

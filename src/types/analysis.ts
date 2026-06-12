@@ -71,7 +71,10 @@ export interface GrammarResult {
   warningCount: number;
   suggestionCount: number;
   grammarScore: number;
+  /** True when LanguageTool NLP layer successfully enhanced the analysis */
+  isNLPEnhanced?: boolean;
 }
+
 
 export interface ReadabilityResult {
   fleschKincaid: number;

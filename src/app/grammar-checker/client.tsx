@@ -1,28 +1,52 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { SpellCheck, Zap, ArrowRight, ShieldAlert } from 'lucide-react';
-import { TextInput } from '@/components/analysis/TextInput';
+import { motion } from 'framer-motion';
+import { SpellCheck, Zap, ArrowRight } from 'lucide-react';
 import { ResultsDashboard } from '@/components/analysis/ResultsDashboard';
 import { useAnalysis } from '@/hooks/useAnalysis';
 import { AdSlot } from '@/components/layout/AdSlot';
 import { useDebounce } from '@/hooks/useDebounce';
-
-const FREE_WORD_LIMIT = 500;
+import { useHistory, getHistoryItem } from '@/hooks/useHistory';
 
 export function GrammarClient() {
   const [text, setText] = useState('');
-  const { status, progress, result, error, analyze, reset } = useAnalysis();
-  const [showFreemiumOverlay, setShowFreemiumOverlay] = useState(true);
+  const { status, progress, result, error, analyze, reset, loadResult } = useAnalysis();
+  const { save: saveHistory } = useHistory();
 
   const debouncedText = useDebounce(text, 500);
+
+  // Load history item from IndexedDB if query param historyId is set
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const historyId = params.get('historyId');
+    if (historyId) {
+      getHistoryItem(historyId).then((scan) => {
+        if (scan) {
+          setText(scan.text || '');
+          loadResult(scan);
+          
+          // Clear query parameters
+          const newUrl = window.location.pathname;
+          window.history.replaceState({ path: newUrl }, '', newUrl);
+        }
+      }).catch((err) => console.error('Error loading history scan:', err));
+    }
+  }, [loadResult]);
+
+  // Save to history whenever a new result arrives
+  useEffect(() => {
+    if (result) {
+      saveHistory(result).catch(() => {});
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [result]);
 
   const handleAnalyze = async () => {
     if (!debouncedText.trim() || debouncedText.trim().split(/\s+/).length < 10) return;
     try {
       await analyze(debouncedText);
-      setShowFreemiumOverlay(true);
     } catch (err) {
       console.error('Analysis execution failed:', err);
     }

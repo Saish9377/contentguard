@@ -68,9 +68,26 @@
 /* Base resets & typography */
 body {
   background-color: var(--bg-primary);
+  background-image: 
+    radial-gradient(at 10% 10%, rgba(124, 92, 252, 0.04) 0px, transparent 40%),
+    radial-gradient(at 90% 90%, rgba(236, 72, 153, 0.02) 0px, transparent 40%),
+    linear-gradient(rgba(0, 0, 0, 0.01) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 0, 0, 0.01) 1px, transparent 1px);
+  background-size: 100% 100%, 100% 100%, 50px 50px, 50px 50px;
   color: var(--text-primary);
   font-family: 'DM Sans', sans-serif;
-  transition: background-color 0.2s ease, color 0.2s ease;
+  transition: background-color 0.3s ease, color 0.3s ease;
+  position: relative;
+  overflow-x: hidden;
+}
+
+.dark body {
+  background-image: 
+    radial-gradient(at 5% 5%, rgba(124, 92, 252, 0.07) 0px, transparent 45%),
+    radial-gradient(at 95% 95%, rgba(236, 72, 153, 0.04) 0px, transparent 45%),
+    linear-gradient(rgba(255, 255, 255, 0.004) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.004) 1px, transparent 1px);
+  background-size: 100% 100%, 100% 100%, 50px 50px, 50px 50px;
 }
 
 h1, h2, h3, h4, h5, h6 {
@@ -94,43 +111,47 @@ h1, h2, h3, h4, h5, h6 {
   animation: pulse-dot 2s infinite ease-in-out;
 }
 
-/* Custom transitions and premium glow shadows */
+/* Custom transitions and premium glassmorphism glow shadows */
 .shadow-premium-glow {
-  box-shadow: 0 0 25px rgba(124, 92, 252, 0.04), 0 0 50px rgba(124, 92, 252, 0.02);
+  box-shadow: 0 8px 32px 0 rgba(124, 92, 252, 0.03), inset 0 0 0 1px rgba(255, 255, 255, 0.4);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 }
 
 .dark .shadow-premium-glow {
-  box-shadow: 0 0 25px rgba(124, 92, 252, 0.08), 0 0 50px rgba(124, 92, 252, 0.03);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37), 0 0 35px rgba(124, 92, 252, 0.06), inset 0 0 0 1px rgba(255, 255, 255, 0.02);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 }
 
 .shadow-purple-glow:hover {
-  box-shadow: 0 10px 25px -5px rgba(124, 92, 252, 0.15), 0 0 15px rgba(124, 92, 252, 0.05);
-  border-color: rgba(124, 92, 252, 0.35) !important;
+  box-shadow: 0 10px 30px -5px rgba(124, 92, 252, 0.15), 0 0 20px rgba(124, 92, 252, 0.08);
+  border-color: rgba(124, 92, 252, 0.45) !important;
 }
 
 .dark .shadow-purple-glow:hover {
-  box-shadow: 0 10px 25px -5px rgba(124, 92, 252, 0.25), 0 0 15px rgba(124, 92, 252, 0.1);
-  border-color: rgba(124, 92, 252, 0.35) !important;
+  box-shadow: 0 10px 30px -5px rgba(124, 92, 252, 0.3), 0 0 25px rgba(124, 92, 252, 0.15);
+  border-color: rgba(124, 92, 252, 0.5) !important;
 }
 
 .shadow-green-glow:hover {
-  box-shadow: 0 10px 25px -5px rgba(16, 185, 129, 0.15), 0 0 15px rgba(16, 185, 129, 0.05);
-  border-color: rgba(16, 185, 129, 0.35) !important;
+  box-shadow: 0 10px 30px -5px rgba(16, 185, 129, 0.15), 0 0 20px rgba(16, 185, 129, 0.08);
+  border-color: rgba(16, 185, 129, 0.45) !important;
 }
 
 .dark .shadow-green-glow:hover {
-  box-shadow: 0 10px 25px -5px rgba(16, 185, 129, 0.25), 0 0 15px rgba(16, 185, 129, 0.1);
-  border-color: rgba(16, 185, 129, 0.35) !important;
+  box-shadow: 0 10px 30px -5px rgba(16, 185, 129, 0.3), 0 0 25px rgba(16, 185, 129, 0.15);
+  border-color: rgba(16, 185, 129, 0.5) !important;
 }
 
 .shadow-pink-glow:hover {
-  box-shadow: 0 10px 25px -5px rgba(236, 72, 153, 0.15), 0 0 15px rgba(236, 72, 153, 0.05);
-  border-color: rgba(236, 72, 153, 0.35) !important;
+  box-shadow: 0 10px 30px -5px rgba(236, 72, 153, 0.15), 0 0 20px rgba(236, 72, 153, 0.08);
+  border-color: rgba(236, 72, 153, 0.45) !important;
 }
 
 .dark .shadow-pink-glow:hover {
-  box-shadow: 0 10px 25px -5px rgba(236, 72, 153, 0.25), 0 0 15px rgba(236, 72, 153, 0.1);
-  border-color: rgba(236, 72, 153, 0.35) !important;
+  box-shadow: 0 10px 30px -5px rgba(236, 72, 153, 0.3), 0 0 25px rgba(236, 72, 153, 0.15);
+  border-color: rgba(236, 72, 153, 0.5) !important;
 }
 
 /* AI sentence highlight options */

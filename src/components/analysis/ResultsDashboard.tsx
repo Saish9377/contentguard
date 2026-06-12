@@ -5,10 +5,11 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { FullAnalysisResult } from '@/types/analysis';
 import { ScoreGauge } from './ScoreGauge';
 import {
-  FileText, ShieldCheck, SpellCheck, BookOpen, MessageSquare, Download
+  FileText, ShieldCheck, SpellCheck, BookOpen, MessageSquare, Download, Share2
 } from 'lucide-react';
 import { generatePremiumReport, generatePlagiarismReport } from '@/lib/pdf-generator';
 import { toast } from 'sonner';
+import { serializeReport } from '@/lib/report-helper';
 
 // Lazy load tab contents for optimization
 const AITab = lazy(() => import('./tabs/AITab'));
@@ -28,7 +29,9 @@ export function ResultsDashboard({ result, defaultTab = 'ai' }: ResultsDashboard
   const [isExporting, setIsExporting] = useState(false);
 
   useEffect(() => {
-    setActiveTab(defaultTab);
+    setTimeout(() => {
+      setActiveTab(defaultTab);
+    }, 0);
   }, [defaultTab, result.id]);
 
   const exportPDFReport = async () => {
@@ -122,6 +125,28 @@ export function ResultsDashboard({ result, defaultTab = 'ai' }: ResultsDashboard
     }
   };
 
+  const shareReport = () => {
+    try {
+      const base64 = serializeReport({
+        id: result.id,
+        type: activeTab === 'ai' ? 'ai' : activeTab === 'plagiarism' ? 'plagiarism' : 'grammar',
+        aiScore: aiDetection.aiScore,
+        originalityScore: plagiarism.originalityScore,
+        grammarScore: grammar.grammarScore,
+        qualityScore: qualityScore.overallScore,
+        wordCount: writingMetrics.wordCount,
+        timestamp: result.timestamp,
+        textPreview: (result.text || '').slice(0, 500),
+      });
+      const shareUrl = `${window.location.origin}/report?r=${base64}`;
+      navigator.clipboard.writeText(shareUrl);
+      toast.success('Shareable report link copied to clipboard!');
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to generate share link.');
+    }
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 12 }}
@@ -138,24 +163,36 @@ export function ResultsDashboard({ result, defaultTab = 'ai' }: ResultsDashboard
           <ScoreGauge score={qualityScore.overallScore} label="Quality" size={96} />
         </div>
         
-        {/* Export Button */}
-        <button
-          onClick={exportPDFReport}
-          disabled={isExporting}
-          className="px-5 py-3 rounded-xl bg-accent-purple/10 border border-accent-purple/20 text-accent-light-purple hover:bg-accent-purple hover:text-text-primary transition-all duration-300 flex items-center justify-center gap-2 cursor-pointer font-bold shrink-0 w-full md:w-auto active:scale-95 shadow-md shadow-premium-glow disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {isExporting ? (
-            <>
-              <div className="w-4 h-4 border-2 border-accent-light-purple border-t-transparent rounded-full animate-spin mr-1" />
-              Exporting...
-            </>
-          ) : (
-            <>
-              <Download className="w-4.5 h-4.5" />
-              Export Premium Report ↓
-            </>
-          )}
-        </button>
+        {/* Buttons Wrapper */}
+        <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto shrink-0">
+          {/* Share Button */}
+          <button
+            onClick={shareReport}
+            className="px-5 py-3 rounded-xl border border-border-custom bg-bg-card text-text-muted hover:text-text-primary hover:bg-bg-input transition-all duration-300 flex items-center justify-center gap-2 cursor-pointer font-bold active:scale-95 shadow-sm"
+          >
+            <Share2 className="w-4.5 h-4.5" />
+            Share Report
+          </button>
+
+          {/* Export Button */}
+          <button
+            onClick={exportPDFReport}
+            disabled={isExporting}
+            className="px-5 py-3 rounded-xl bg-gradient-to-r from-accent-purple to-accent-light-purple hover:shadow-[0_0_20px_rgba(124,92,252,0.4)] text-text-primary hover:text-white transition-all duration-300 flex items-center justify-center gap-2 cursor-pointer font-bold active:scale-95 shadow-md shadow-premium-glow disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isExporting ? (
+              <>
+                <div className="w-4 h-4 border-2 border-accent-light-purple border-t-transparent rounded-full animate-spin mr-1" />
+                Exporting...
+              </>
+            ) : (
+              <>
+                <Download className="w-4.5 h-4.5" />
+                Export Report ↓
+              </>
+            )}
+          </button>
+        </div>
       </div>
 
       {/* Tabs Menu */}

@@ -4,10 +4,9 @@ import { SentenceAnalysis } from '@/types/analysis';
 
 interface AIHeatmapProps {
   sentences: SentenceAnalysis[];
-  originalText: string;
 }
 
-export function AIHeatmap({ sentences, originalText }: AIHeatmapProps) {
+export function AIHeatmap({ sentences }: AIHeatmapProps) {
   if (!sentences || sentences.length === 0) return null;
 
   const getHighlightClass = (classification: 'human' | 'mixed' | 'ai') => {

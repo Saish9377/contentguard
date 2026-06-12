@@ -30,10 +30,6 @@ function getWords(text: string): string[] {
   return text.split(/\s+/).filter(w => w.replace(/[^a-z]/gi, '').length > 0);
 }
 
-function isComplexWord(word: string): boolean {
-  return countSyllables(word) >= 3;
-}
-
 /**
  * Flesch-Kincaid Grade Level
  * Higher = harder to read

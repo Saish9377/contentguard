@@ -16,7 +16,14 @@ export default function GrammarTab({ grammar }: GrammarTabProps) {
             <SpellCheck className="w-4 h-4" />
           </div>
           <div>
-            <h3 className="font-bold text-text-primary text-sm">Grammar & Correctness</h3>
+            <div className="flex items-center gap-2">
+              <h3 className="font-bold text-text-primary text-sm">Grammar & Correctness</h3>
+              {grammar.isNLPEnhanced && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-accent-purple/10 border border-accent-purple/20 text-[9px] font-bold text-accent-light-purple tracking-wider">
+                  ✦ NLP Enhanced
+                </span>
+              )}
+            </div>
             <p className="text-[11px] text-text-muted">
               {grammar.errorCount} errors · {grammar.warningCount} warnings · {grammar.suggestionCount} suggestions
             </p>
@@ -27,6 +34,7 @@ export default function GrammarTab({ grammar }: GrammarTabProps) {
           <span className="text-xs text-text-muted font-semibold">/100</span>
         </div>
       </div>
+
 
       <div>
         <div className="text-[10px] font-semibold text-text-muted uppercase tracking-wider mb-2.5">Corrections & Suggestions</div>

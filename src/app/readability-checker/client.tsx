@@ -1,20 +1,16 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { BookOpen, Zap, ArrowRight, ShieldAlert } from 'lucide-react';
-import { TextInput } from '@/components/analysis/TextInput';
+import { useState } from 'react';
+import { motion } from 'framer-motion';
+import { BookOpen, Zap, ArrowRight } from 'lucide-react';
 import { ResultsDashboard } from '@/components/analysis/ResultsDashboard';
 import { useAnalysis } from '@/hooks/useAnalysis';
 import { AdSlot } from '@/components/layout/AdSlot';
 import { useDebounce } from '@/hooks/useDebounce';
 
-const FREE_WORD_LIMIT = 500;
-
 export function ReadabilityClient() {
   const [text, setText] = useState('');
   const { status, progress, result, error, analyze, reset } = useAnalysis();
-  const [showFreemiumOverlay, setShowFreemiumOverlay] = useState(true);
 
   const debouncedText = useDebounce(text, 500);
 
@@ -22,7 +18,6 @@ export function ReadabilityClient() {
     if (!debouncedText.trim() || debouncedText.trim().split(/\s+/).length < 10) return;
     try {
       await analyze(debouncedText);
-      setShowFreemiumOverlay(true);
     } catch (err) {
       console.error('Analysis execution failed:', err);
     }

@@ -1,14 +1,18 @@
 import { PlagiarismResult, PlagiarismMatch } from '@/types/analysis';
 import { splitIntoSentences } from '@/lib/utils';
+import { queryHFSemantic } from '@/lib/hf-client';
 
 /**
  * Plagiarism Checker — N-gram Fingerprinting & Similarity Analysis
- * 
- * For MVP: Uses internal text analysis with simulated source matching.
- * Production: Would integrate with web search APIs for real source detection.
+ *
+ * Layers (in order of priority):
+ * 1. Real web search results (injected from /api/plagiarism/search via worker)
+ * 2. HF Semantic similarity via server-side proxy (no exposed token)
+ * 3. Exact string matching against known static sources
+ * 4. Internal self-similarity via Jaccard shingling
  */
 
-// Simulated known sources database for demo
+// Static known sources — used as fallback when no live search results are available
 const KNOWN_SOURCES = [
   {
     name: 'Wikipedia — Artificial Intelligence',
@@ -41,6 +45,19 @@ const KNOWN_SOURCES = [
 ];
 
 /**
+ * Web search result injected from /api/plagiarism/search
+ */
+export interface WebSearchResult {
+  sentence: string;
+  matches: {
+    title: string;
+    url: string;
+    snippet: string;
+    similarity: number; // 0-1
+  }[];
+}
+
+/**
  * Generate word-level shingles for fingerprinting.
  */
 function generateShingles(text: string, size: number = 5): Set<string> {
@@ -61,7 +78,6 @@ function jaccardSimilarity(setA: Set<string>, setB: Set<string>): number {
   if (setA.size === 0 || setB.size === 0) return 0;
   
   let intersectionSize = 0;
-  // Iterate over the smaller set for efficiency
   if (setA.size < setB.size) {
     for (const x of setA) {
       if (setB.has(x)) intersectionSize++;
@@ -76,63 +92,39 @@ function jaccardSimilarity(setA: Set<string>, setB: Set<string>): number {
   return unionSize > 0 ? intersectionSize / unionSize : 0;
 }
 
-const hfSemanticCache = new Map<string, number[]>();
-
 /**
- * Query Hugging Face Inference API for semantic similarity scores.
+ * Check text against known sources and web search results for matching phrases.
  */
-async function queryHFSemanticSimilarity(
-  sourceSentence: string,
-  targetSentences: string[],
-  token: string
-): Promise<number[] | null> {
-  const cacheKey = `${sourceSentence}:${targetSentences.join('|')}`;
-  if (hfSemanticCache.has(cacheKey)) {
-    return hfSemanticCache.get(cacheKey) ?? null;
-  }
-
-  try {
-    const response = await fetch(
-      'https://api-inference.huggingface.co/models/sentence-transformers/all-MiniLM-L6-v2',
-      {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          inputs: {
-            source_sentence: sourceSentence,
-            sentences: targetSentences,
-          },
-        }),
-      }
-    );
-
-    if (!response.ok) {
-      throw new Error(`HF Semantic API error: ${response.status} ${response.statusText}`);
-    }
-
-    const data = await response.json();
-    if (Array.isArray(data)) {
-      const scores = (data as unknown[]).map((val) => typeof val === 'number' ? val : 0);
-      hfSemanticCache.set(cacheKey, scores);
-      return scores;
-    }
-  } catch (error) {
-    console.error('Hugging Face Semantic Similarity failed:', error);
-  }
-  return null;
-}
-
-/**
- * Check text against known sources for matching phrases.
- */
-async function findMatches(text: string, sentences: string[], hfToken?: string): Promise<PlagiarismMatch[]> {
+async function findMatches(
+  text: string,
+  sentences: string[],
+  webSearchResults?: WebSearchResult[]
+): Promise<PlagiarismMatch[]> {
   const matches: PlagiarismMatch[] = [];
   const lowerText = text.toLowerCase();
 
-  // Known sources flat list for batch semantic comparison
+  // ── Layer 1: Web search results (injected from /api/plagiarism/search) ──────
+  if (webSearchResults && webSearchResults.length > 0) {
+    for (const searchResult of webSearchResults) {
+      for (const match of searchResult.matches) {
+        if (match.similarity > 0.55) {
+          const startIndex = text.indexOf(searchResult.sentence);
+          if (startIndex >= 0 && !matches.some(m => m.startIndex === startIndex)) {
+            matches.push({
+              text: searchResult.sentence,
+              matchPercentage: Math.round(match.similarity * 100),
+              source: match.title || match.url,
+              url: match.url,
+              startIndex,
+              endIndex: startIndex + searchResult.sentence.length,
+            });
+          }
+        }
+      }
+    }
+  }
+
+  // ── Layer 2: HF Semantic similarity against known static source phrases ──────
   const allKnownPhrases: string[] = [];
   const phraseToSourceMap: { phrase: string; sourceName: string; url: string }[] = [];
   for (const source of KNOWN_SOURCES) {
@@ -142,11 +134,16 @@ async function findMatches(text: string, sentences: string[], hfToken?: string):
     }
   }
 
-  // Check against known sources semantically if token is available
-  if (hfToken && sentences.length > 0 && allKnownPhrases.length > 0) {
-    for (const sentence of sentences) {
-      if (sentence.trim().split(/\s+/).length < 3) continue;
-      const scores = await queryHFSemanticSimilarity(sentence, allKnownPhrases, hfToken);
+  if (sentences.length > 0 && allKnownPhrases.length > 0) {
+    // Limit semantic check against static phrases to the top 8 longest/most unique sentences
+    // to prevent network flooding and API quota exhaustion.
+    const targetSentences = [...sentences]
+      .filter(s => s.trim().split(/\s+/).length >= 5)
+      .sort((a, b) => b.length - a.length)
+      .slice(0, 8);
+
+    for (const sentence of targetSentences) {
+      const scores = await queryHFSemantic(sentence, allKnownPhrases);
       if (scores) {
         scores.forEach((score, idx) => {
           if (score > 0.65) {
@@ -168,7 +165,7 @@ async function findMatches(text: string, sentences: string[], hfToken?: string):
     }
   }
 
-  // Check against known source phrases using exact matching
+  // ── Layer 3: Exact string matching against known source phrases ──────────────
   for (const source of KNOWN_SOURCES) {
     for (const phrase of source.phrases) {
       if (lowerText.includes(phrase)) {
@@ -188,41 +185,26 @@ async function findMatches(text: string, sentences: string[], hfToken?: string):
     }
   }
 
-  // Pre-calculate shingles (size 3) for internal duplicate detection
+  // ── Layer 4: Internal self-similarity (Jaccard shingling) ────────────────────
   const sentenceShingles3 = sentences.map(s => generateShingles(s, 3));
 
-  // Check for internal self-similarity (duplicate sentences within text)
   for (let i = 0; i < sentences.length; i++) {
     const shinglesA = sentenceShingles3[i];
     if (shinglesA.size === 0) continue;
-
-    // Batch query semantic scores for sentence i compared to all subsequent sentences
-    let semanticScores: number[] | null = null;
-    if (hfToken) {
-      const targets = sentences.slice(i + 1);
-      if (targets.length > 0) {
-        semanticScores = await queryHFSemanticSimilarity(sentences[i], targets, hfToken);
-      }
-    }
 
     for (let j = i + 1; j < sentences.length; j++) {
       const shinglesB = sentenceShingles3[j];
       if (shinglesB.size === 0) continue;
 
       const jaccardScore = jaccardSimilarity(shinglesA, shinglesB);
-      let combinedScore = jaccardScore;
 
-      if (semanticScores) {
-        const semanticScore = semanticScores[j - (i + 1)] || 0;
-        combinedScore = 0.6 * semanticScore + 0.4 * jaccardScore;
-      }
-
-      if (combinedScore > 0.5) {
+      // Flag as internal duplicate if Jaccard similarity is high (> 0.5)
+      if (jaccardScore > 0.5) {
         const startIndex = text.indexOf(sentences[j]);
         if (!matches.some(m => m.startIndex === startIndex)) {
           matches.push({
             text: sentences[j],
-            matchPercentage: Math.round(combinedScore * 100),
+            matchPercentage: Math.round(jaccardScore * 100),
             source: 'Internal duplicate',
             startIndex: startIndex >= 0 ? startIndex : 0,
             endIndex: startIndex >= 0 ? startIndex + sentences[j].length : sentences[j].length,
@@ -232,7 +214,7 @@ async function findMatches(text: string, sentences: string[], hfToken?: string):
     }
   }
 
-  // Generate some plausible flagged sentences for demonstration
+  // ── Generic phrase flag (generic transition words signal possible plagiarism) ──
   const sentenceShingles = sentences.map(s => ({
     sentence: s,
     shingles: generateShingles(s, 4),
@@ -241,9 +223,8 @@ async function findMatches(text: string, sentences: string[], hfToken?: string):
   for (const { sentence, shingles } of sentenceShingles) {
     if (shingles.size < 3) continue;
 
-    // Simulate a match probability based on generic phrase patterns
     const words = sentence.toLowerCase().split(/\s+/);
-    const genericPhraseCount = words.filter(w => 
+    const genericPhraseCount = words.filter(w =>
       ['however', 'therefore', 'furthermore', 'additionally', 'consequently'].includes(w)
     ).length;
 
@@ -265,8 +246,13 @@ async function findMatches(text: string, sentences: string[], hfToken?: string):
 
 /**
  * Main plagiarism checking function.
+ * @param text The text to analyze.
+ * @param webSearchResults Optional real web search results injected from the worker.
  */
-export async function checkPlagiarism(text: string, hfToken?: string): Promise<PlagiarismResult> {
+export async function checkPlagiarism(
+  text: string,
+  webSearchResults?: WebSearchResult[]
+): Promise<PlagiarismResult> {
   if (!text || text.trim().length === 0) {
     return {
       originalityScore: 100,
@@ -281,7 +267,7 @@ export async function checkPlagiarism(text: string, hfToken?: string): Promise<P
   const words = text.split(/\s+/).filter(w => w.length > 0);
   const totalWords = words.length;
 
-  const matches = await findMatches(text, sentences, hfToken);
+  const matches = await findMatches(text, sentences, webSearchResults);
 
   // Calculate matched words
   const matchedChars = new Set<number>();
