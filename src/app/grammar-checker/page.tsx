@@ -1,49 +1,76 @@
 import type { Metadata } from 'next';
 import { GrammarClient } from './client';
 
+const BASE_URL = 'https://contentguard.saishshinde2030.workers.dev';
+const PAGE_URL = `${BASE_URL}/grammar-checker`;
+const TITLE = 'Free Grammar Checker Online — Fix Errors Instantly';
+const DESCRIPTION =
+  'Free grammar checker online: fix grammar, spelling, and punctuation errors with smart AI suggestions. Real-time analysis with error severity ratings. No account required.';
+
 export const metadata: Metadata = {
-  title: 'Free Grammar Checker — Fix Spelling & Punctuation Errors | ContentGuard',
-  description: 'Check your grammar, spelling, and punctuation for free. Get smart correction suggestions with real-time analysis. No account required.',
-  keywords: 'free grammar checker, grammar checker, spell check, punctuation checker, fix grammar free, grammar check online',
+  title: TITLE,
+  description: DESCRIPTION,
+  keywords: [
+    'free grammar checker online',
+    'grammar checker',
+    'spell check online free',
+    'punctuation checker',
+    'fix grammar mistakes',
+    'grammar error detector',
+    'English grammar check',
+    'sentence correction tool',
+    'proofreading tool free',
+    'writing grammar tool',
+  ],
   alternates: {
-    canonical: 'https://contentguard.saishshinde2030.workers.dev/grammar-checker',
+    canonical: PAGE_URL,
   },
   openGraph: {
-    title: 'Free Grammar Checker — Fix Spelling & Punctuation Errors | ContentGuard',
-    description: 'Check your grammar, spelling, and punctuation for free. Get smart correction suggestions with real-time analysis. No account required.',
-    url: 'https://contentguard.saishshinde2030.workers.dev/grammar-checker',
+    title: TITLE,
+    description: DESCRIPTION,
+    url: PAGE_URL,
+    siteName: 'ContentGuard AI',
     type: 'website',
     images: [
       {
-        url: 'https://contentguard.saishshinde2030.workers.dev/og-image.png',
+        url: `${BASE_URL}/og-image.png`,
         width: 1200,
         height: 630,
-        alt: 'Free Grammar Checker — Fix Spelling & Punctuation Errors | ContentGuard',
+        alt: TITLE,
       },
     ],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Free Grammar Checker — Fix Spelling & Punctuation Errors | ContentGuard',
-    description: 'Check your grammar, spelling, and punctuation for free. Get smart correction suggestions with real-time analysis. No account required.',
-    images: ['https://contentguard.saishshinde2030.workers.dev/og-image.png'],
+    title: TITLE,
+    description: DESCRIPTION,
+    images: [`${BASE_URL}/og-image.png`],
   },
 };
 
 export default function GrammarCheckerPage() {
   const jsonLd = {
     '@context': 'https://schema.org',
-    '@type': 'WebApplication',
-    'name': 'Free Grammar Checker — ContentGuard',
-    'url': 'https://contentguard.saishshinde2030.workers.dev/grammar-checker',
-    'description': 'Free online grammar checker. Fix grammar, spelling, and punctuation errors instantly.',
-    'applicationCategory': 'UtilitiesApplication',
-    'operatingSystem': 'Web',
-    'offers': {
+    '@type': 'SoftwareApplication',
+    name: 'Free Grammar Checker Online — ContentGuard AI',
+    url: PAGE_URL,
+    description:
+      'Free online grammar checker. Detect and fix grammar, spelling, punctuation, and style errors with intelligent suggestions and severity ratings.',
+    applicationCategory: 'UtilitiesApplication',
+    operatingSystem: 'Web',
+    offers: {
       '@type': 'Offer',
-      'price': '0',
-      'priceCurrency': 'USD',
+      price: '0',
+      priceCurrency: 'USD',
     },
+    featureList: [
+      'Grammar error detection',
+      'Spell check',
+      'Punctuation correction',
+      'Style suggestions',
+      'Error severity ratings',
+      'Smart correction recommendations',
+    ],
   };
 
   return (

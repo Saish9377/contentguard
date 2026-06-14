@@ -1,49 +1,76 @@
 import type { Metadata } from 'next';
 import { AIDetectorClient } from './client';
 
+const BASE_URL = 'https://contentguard.saishshinde2030.workers.dev';
+const PAGE_URL = `${BASE_URL}/ai-detector`;
+const TITLE = 'Free AI Detector — Check ChatGPT, Claude & Gemini Text';
+const DESCRIPTION =
+  'Free AI detector that identifies ChatGPT, Claude, and Gemini-written text with sentence-level heatmap and confidence scores. No signup required — results in seconds.';
+
 export const metadata: Metadata = {
-  title: 'Free AI Content Detector — Detect ChatGPT, Claude & Gemini Text | ContentGuard',
-  description: 'Detect AI-generated content instantly. Identify text written by ChatGPT, Claude, or Gemini with sentence-level highlighting and confidence scores. 100% free.',
-  keywords: 'free AI content detector, AI content detector, ChatGPT detector, AI text detector, AI detector free, check ChatGPT text free',
+  title: TITLE,
+  description: DESCRIPTION,
+  keywords: [
+    'free AI detector',
+    'AI content detector',
+    'ChatGPT detector free',
+    'detect AI text online',
+    'AI text detector',
+    'check AI writing free',
+    'Claude detector',
+    'Gemini text detector',
+    'AI sentence heatmap',
+    'detect AI generated content',
+  ],
   alternates: {
-    canonical: 'https://contentguard.saishshinde2030.workers.dev/ai-detector',
+    canonical: PAGE_URL,
   },
   openGraph: {
-    title: 'Free AI Content Detector — Detect ChatGPT, Claude & Gemini Text | ContentGuard',
-    description: 'Detect AI-generated content instantly. Identify text written by ChatGPT, Claude, or Gemini with sentence-level highlighting and confidence scores. 100% free.',
-    url: 'https://contentguard.saishshinde2030.workers.dev/ai-detector',
+    title: TITLE,
+    description: DESCRIPTION,
+    url: PAGE_URL,
+    siteName: 'ContentGuard AI',
     type: 'website',
     images: [
       {
-        url: 'https://contentguard.saishshinde2030.workers.dev/og-image.png',
+        url: `${BASE_URL}/og-image.png`,
         width: 1200,
         height: 630,
-        alt: 'Free AI Content Detector — Detect ChatGPT, Claude & Gemini Text | ContentGuard',
+        alt: TITLE,
       },
     ],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Free AI Content Detector — Detect ChatGPT, Claude & Gemini Text | ContentGuard',
-    description: 'Detect AI-generated content instantly. Identify text written by ChatGPT, Claude, or Gemini with sentence-level highlighting and confidence scores. 100% free.',
-    images: ['https://contentguard.saishshinde2030.workers.dev/og-image.png'],
+    title: TITLE,
+    description: DESCRIPTION,
+    images: [`${BASE_URL}/og-image.png`],
   },
 };
 
 export default function AIDetectorPage() {
   const jsonLd = {
     '@context': 'https://schema.org',
-    '@type': 'WebApplication',
-    'name': 'Free AI Content Detector — ContentGuard',
-    'url': 'https://contentguard.saishshinde2030.workers.dev/ai-detector',
-    'description': 'Free online AI content detector. Detect text written by ChatGPT, Claude, and Gemini instantly.',
-    'applicationCategory': 'UtilitiesApplication',
-    'operatingSystem': 'Web',
-    'offers': {
+    '@type': 'SoftwareApplication',
+    name: 'Free AI Detector — ContentGuard AI',
+    url: PAGE_URL,
+    description:
+      'Detect AI-generated text from ChatGPT, Claude, and Gemini with sentence-level heatmap. Free, no signup.',
+    applicationCategory: 'UtilitiesApplication',
+    operatingSystem: 'Web',
+    offers: {
       '@type': 'Offer',
-      'price': '0',
-      'priceCurrency': 'USD',
+      price: '0',
+      priceCurrency: 'USD',
     },
+    featureList: [
+      'Sentence-level AI heatmap',
+      'ChatGPT detection',
+      'Claude detection',
+      'Gemini detection',
+      'Confidence scoring',
+      'Perplexity & burstiness analysis',
+    ],
   };
 
   return (

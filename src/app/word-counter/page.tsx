@@ -1,49 +1,77 @@
 import type { Metadata } from 'next';
 import { WordCounterClient } from './client';
 
+const BASE_URL = 'https://contentguard.saishshinde2030.workers.dev';
+const PAGE_URL = `${BASE_URL}/word-counter`;
+const TITLE = 'Free Word Counter Online — Characters, Sentences & More';
+const DESCRIPTION =
+  'Free word counter online with character count, sentence analysis, reading time, speaking time, and vocabulary density. Real-time stats for essays, articles & social posts.';
+
 export const metadata: Metadata = {
-  title: 'Free Word Counter — Count Words, Characters & Sentences | ContentGuard',
-  description: 'Count words, characters, sentences, and paragraphs instantly. Get reading time, speaking time, and vocabulary density analysis. 100% free online tool.',
-  keywords: 'free word counter, word counter online, character counter, check word count, count words free, text statistics tool',
+  title: TITLE,
+  description: DESCRIPTION,
+  keywords: [
+    'free word counter online',
+    'word counter',
+    'character counter',
+    'word count tool',
+    'count words online',
+    'sentence counter',
+    'reading time calculator',
+    'speaking time calculator',
+    'text statistics tool',
+    'vocabulary density checker',
+  ],
   alternates: {
-    canonical: 'https://contentguard.saishshinde2030.workers.dev/word-counter',
+    canonical: PAGE_URL,
   },
   openGraph: {
-    title: 'Free Word Counter — Count Words, Characters & Sentences | ContentGuard',
-    description: 'Count words, characters, sentences, and paragraphs instantly. Get reading time, speaking time, and vocabulary density analysis. 100% free online tool.',
-    url: 'https://contentguard.saishshinde2030.workers.dev/word-counter',
+    title: TITLE,
+    description: DESCRIPTION,
+    url: PAGE_URL,
+    siteName: 'ContentGuard AI',
     type: 'website',
     images: [
       {
-        url: 'https://contentguard.saishshinde2030.workers.dev/og-image.png',
+        url: `${BASE_URL}/og-image.png`,
         width: 1200,
         height: 630,
-        alt: 'Free Word Counter — Count Words, Characters & Sentences | ContentGuard',
+        alt: TITLE,
       },
     ],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Free Word Counter — Count Words, Characters & Sentences | ContentGuard',
-    description: 'Count words, characters, sentences, and paragraphs instantly. Get reading time, speaking time, and vocabulary density analysis. 100% free online tool.',
-    images: ['https://contentguard.saishshinde2030.workers.dev/og-image.png'],
+    title: TITLE,
+    description: DESCRIPTION,
+    images: [`${BASE_URL}/og-image.png`],
   },
 };
 
 export default function WordCounterPage() {
   const jsonLd = {
     '@context': 'https://schema.org',
-    '@type': 'WebApplication',
-    'name': 'Free Word Counter — ContentGuard',
-    'url': 'https://contentguard.saishshinde2030.workers.dev/word-counter',
-    'description': 'Free online word counter. Count words, characters, sentences, and paragraphs instantly with real-time reading and speaking time analysis.',
-    'applicationCategory': 'UtilitiesApplication',
-    'operatingSystem': 'Web',
-    'offers': {
+    '@type': 'SoftwareApplication',
+    name: 'Free Word Counter Online — ContentGuard AI',
+    url: PAGE_URL,
+    description:
+      'Free online word counter. Count words, characters, sentences, and paragraphs in real time with reading time, speaking time, and vocabulary density analysis.',
+    applicationCategory: 'UtilitiesApplication',
+    operatingSystem: 'Web',
+    offers: {
       '@type': 'Offer',
-      'price': '0',
-      'priceCurrency': 'USD',
+      price: '0',
+      priceCurrency: 'USD',
     },
+    featureList: [
+      'Real-time word count',
+      'Character count with and without spaces',
+      'Sentence and paragraph count',
+      'Estimated reading time',
+      'Estimated speaking time',
+      'Vocabulary density analysis',
+      'Top word frequency list',
+    ],
   };
 
   return (

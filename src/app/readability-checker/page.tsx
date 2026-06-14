@@ -1,49 +1,77 @@
 import type { Metadata } from 'next';
 import { ReadabilityClient } from './client';
 
+const BASE_URL = 'https://contentguard.saishshinde2030.workers.dev';
+const PAGE_URL = `${BASE_URL}/readability-checker`;
+const TITLE = 'Readability Score Checker Free — Flesch & Grade Level';
+const DESCRIPTION =
+  'Check readability score free with Flesch-Kincaid, Gunning Fog, SMOG, and Coleman-Liau indexes. Get reading level, estimated reading time, and writing complexity analysis.';
+
 export const metadata: Metadata = {
-  title: 'Free Readability Checker — Flesch Score & Reading Level | ContentGuard',
-  description: "Analyze your content's readability score, reading level, and complexity. Get estimated reading time and improve your writing clarity for free.",
-  keywords: 'free readability checker, readability checker, readability score, reading level checker, check text complexity, Flesch reading ease',
+  title: TITLE,
+  description: DESCRIPTION,
+  keywords: [
+    'readability score checker free',
+    'readability checker',
+    'Flesch Kincaid score',
+    'reading level checker',
+    'Gunning Fog index',
+    'SMOG index checker',
+    'reading ease score',
+    'text complexity checker',
+    'estimated reading time',
+    'writing clarity tool free',
+  ],
   alternates: {
-    canonical: 'https://contentguard.saishshinde2030.workers.dev/readability-checker',
+    canonical: PAGE_URL,
   },
   openGraph: {
-    title: 'Free Readability Checker — Flesch Score & Reading Level | ContentGuard',
-    description: "Analyze your content's readability score, reading level, and complexity. Get estimated reading time and improve your writing clarity for free.",
-    url: 'https://contentguard.saishshinde2030.workers.dev/readability-checker',
+    title: TITLE,
+    description: DESCRIPTION,
+    url: PAGE_URL,
+    siteName: 'ContentGuard AI',
     type: 'website',
     images: [
       {
-        url: 'https://contentguard.saishshinde2030.workers.dev/og-image.png',
+        url: `${BASE_URL}/og-image.png`,
         width: 1200,
         height: 630,
-        alt: 'Free Readability Checker — Flesch Score & Reading Level | ContentGuard',
+        alt: TITLE,
       },
     ],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Free Readability Checker — Flesch Score & Reading Level | ContentGuard',
-    description: "Analyze your content's readability score, reading level, and complexity. Get estimated reading time and improve your writing clarity for free.",
-    images: ['https://contentguard.saishshinde2030.workers.dev/og-image.png'],
+    title: TITLE,
+    description: DESCRIPTION,
+    images: [`${BASE_URL}/og-image.png`],
   },
 };
 
 export default function ReadabilityCheckerPage() {
   const jsonLd = {
     '@context': 'https://schema.org',
-    '@type': 'WebApplication',
-    'name': 'Free Readability Checker — ContentGuard',
-    'url': 'https://contentguard.saishshinde2030.workers.dev/readability-checker',
-    'description': 'Free online readability checker. Get Flesch Reading Ease score, reading level, and estimated reading time.',
-    'applicationCategory': 'UtilitiesApplication',
-    'operatingSystem': 'Web',
-    'offers': {
+    '@type': 'SoftwareApplication',
+    name: 'Readability Score Checker — ContentGuard AI',
+    url: PAGE_URL,
+    description:
+      'Free online readability score checker. Analyze Flesch Reading Ease, Flesch-Kincaid Grade Level, Gunning Fog, SMOG, and Coleman-Liau indexes with reading time estimates.',
+    applicationCategory: 'UtilitiesApplication',
+    operatingSystem: 'Web',
+    offers: {
       '@type': 'Offer',
-      'price': '0',
-      'priceCurrency': 'USD',
+      price: '0',
+      priceCurrency: 'USD',
     },
+    featureList: [
+      'Flesch Reading Ease score',
+      'Flesch-Kincaid Grade Level',
+      'Gunning Fog Index',
+      'SMOG Index',
+      'Coleman-Liau Index',
+      'Estimated reading time',
+      'Reading level classification',
+    ],
   };
 
   return (

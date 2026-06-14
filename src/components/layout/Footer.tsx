@@ -8,7 +8,7 @@ export function Footer() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-10">
           {/* Brand */}
           <div>
-            <Link href="/" className="flex items-center gap-2 mb-4">
+            <Link href="/" className="flex items-center gap-2 mb-4" aria-label="ContentGuard AI Home">
               <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-accent-purple to-accent-light-purple flex items-center justify-center">
                 <Shield className="w-4.5 h-4.5 text-bg-primary" />
               </div>
@@ -18,80 +18,85 @@ export function Footer() {
               </span>
             </Link>
             <p className="text-sm leading-relaxed text-text-muted mb-4">
-              Free AI content detection, plagiarism checking, and writing analysis. No signup required.
+              Free AI content detection, plagiarism checking, and writing analysis tools. No signup required.
             </p>
           </div>
 
           {/* Tools */}
-          <div>
+          <nav aria-label="Writing tools navigation">
             <h3 className="text-xs font-bold text-text-primary mb-4 uppercase tracking-wider">
-              Tools
+              Free Writing Tools
             </h3>
             <ul className="space-y-2.5">
               <li>
                 <Link href="/ai-detector" className="text-sm hover:text-text-primary transition-colors">
-                  AI Detector
+                  Free AI Detector
+                </Link>
+              </li>
+              <li>
+                <Link href="/humanizer" className="text-sm hover:text-text-primary transition-colors">
+                  AI Text Humanizer
                 </Link>
               </li>
               <li>
                 <Link href="/plagiarism-checker" className="text-sm hover:text-text-primary transition-colors">
-                  Plagiarism
+                  Plagiarism Checker Online
                 </Link>
               </li>
               <li>
                 <Link href="/grammar-checker" className="text-sm hover:text-text-primary transition-colors">
-                  Grammar
+                  Grammar Checker Online
                 </Link>
               </li>
               <li>
                 <Link href="/readability-checker" className="text-sm hover:text-text-primary transition-colors">
-                  Readability
+                  Readability Score Checker
                 </Link>
               </li>
               <li>
                 <Link href="/citation-generator" className="text-sm hover:text-text-primary transition-colors">
-                  Citations
+                  Free Citation Generator
                 </Link>
               </li>
               <li>
                 <Link href="/word-counter" className="text-sm hover:text-text-primary transition-colors">
-                  Word Counter
+                  Word Counter Online
                 </Link>
               </li>
             </ul>
-          </div>
+          </nav>
 
           {/* Resources */}
-          <div>
+          <nav aria-label="Resources navigation">
             <h3 className="text-xs font-bold text-text-primary mb-4 uppercase tracking-wider">
               Resources
             </h3>
             <ul className="space-y-2.5">
               <li>
-                <Link href="/resources" className="text-sm hover:text-text-primary transition-colors">
-                  Resources Hub
-                </Link>
-              </li>
-              <li>
                 <Link href="/features" className="text-sm hover:text-text-primary transition-colors">
-                  Features
+                  All Features
                 </Link>
               </li>
               <li>
                 <Link href="/how-it-works" className="text-sm hover:text-text-primary transition-colors">
-                  How It Works
+                  How AI Detection Works
                 </Link>
               </li>
               <li>
                 <Link href="/faq" className="text-sm hover:text-text-primary transition-colors">
-                  FAQ
+                  Frequently Asked Questions
+                </Link>
+              </li>
+              <li>
+                <Link href="/resources" className="text-sm hover:text-text-primary transition-colors">
+                  Writing Resources Hub
                 </Link>
               </li>
             </ul>
-          </div>
+          </nav>
 
           {/* Legal */}
-          <div>
+          <nav aria-label="Legal navigation">
             <h3 className="text-xs font-bold text-text-primary mb-4 uppercase tracking-wider">
               Legal
             </h3>
@@ -107,18 +112,23 @@ export function Footer() {
                 </Link>
               </li>
               <li>
+                <Link href="/legal" className="text-sm hover:text-text-primary transition-colors">
+                  Legal Notice
+                </Link>
+              </li>
+              <li>
                 <Link href="/contact" className="text-sm hover:text-text-primary transition-colors">
-                  Contact
+                  Contact Us
                 </Link>
               </li>
             </ul>
-          </div>
+          </nav>
         </div>
 
         {/* Bottom bar with pill badges */}
         <div className="mt-12 pt-8 border-t border-border-custom/50 flex flex-col md:flex-row items-center justify-between gap-4">
           <p className="text-xs text-text-muted">
-            © {new Date().getFullYear()} ContentGuard. All rights reserved.
+            © {new Date().getFullYear()} ContentGuard AI. All rights reserved.
           </p>
           <div className="flex flex-wrap gap-2">
             <span className="px-3 py-1 rounded-full text-[10px] font-bold tracking-wide uppercase bg-bg-input text-accent-purple border border-border-custom">

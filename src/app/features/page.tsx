@@ -3,10 +3,51 @@ import { FeaturesSection } from '@/components/home/FeaturesSection';
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 
+const BASE_URL = 'https://contentguard.saishshinde2030.workers.dev';
+const PAGE_URL = `${BASE_URL}/features`;
+const TITLE = 'ContentGuard AI Features — 7 Free Writing Tools';
+const DESCRIPTION =
+  'Explore all ContentGuard AI features: AI detector, plagiarism checker, grammar fixer, readability scorer, AI humanizer, citation generator, and word counter — all free.';
+
 export const metadata: Metadata = {
-  title: 'ContentGuard AI Features — AI Detector & Writing Tools',
-  description: 'Explore the full suite of free tools offered by ContentGuard AI, including AI content detection, plagiarism checking, grammar analysis, and writing metrics.',
-  keywords: ['AI detector features', 'plagiarism checker', 'grammar checker tools', 'content analysis features'],
+  title: TITLE,
+  description: DESCRIPTION,
+  keywords: [
+    'ContentGuard AI features',
+    'AI detector features',
+    'free writing tools',
+    'plagiarism checker features',
+    'grammar checker online',
+    'readability analyzer',
+    'AI humanizer tool',
+    'citation generator features',
+    'word counter features',
+    'content analysis tools',
+  ],
+  alternates: {
+    canonical: PAGE_URL,
+  },
+  openGraph: {
+    title: TITLE,
+    description: DESCRIPTION,
+    url: PAGE_URL,
+    siteName: 'ContentGuard AI',
+    type: 'website',
+    images: [
+      {
+        url: `${BASE_URL}/og-image.png`,
+        width: 1200,
+        height: 630,
+        alt: TITLE,
+      },
+    ],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: TITLE,
+    description: DESCRIPTION,
+    images: [`${BASE_URL}/og-image.png`],
+  },
 };
 
 export default function FeaturesPage() {

@@ -3,10 +3,51 @@ import { HowItWorks } from '@/components/home/HowItWorks';
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 
+const BASE_URL = 'https://contentguard.saishshinde2030.workers.dev';
+const PAGE_URL = `${BASE_URL}/how-it-works`;
+const TITLE = 'How AI Content Detection Works — ContentGuard AI';
+const DESCRIPTION =
+  'Learn how ContentGuard AI detects AI-generated text using perplexity and burstiness analysis, cross-references plagiarism sources, and scores grammar and readability in seconds.';
+
 export const metadata: Metadata = {
-  title: 'How It Works — ContentGuard AI analysis flow',
-  description: 'Learn how ContentGuard AI analyzes your text for artificial intelligence signatures, sentence-level plagiarism, grammatical corrections, and readability scoring in three easy steps.',
-  keywords: ['AI detector workflow', 'plagiarism checker how it works', 'essay analysis steps'],
+  title: TITLE,
+  description: DESCRIPTION,
+  keywords: [
+    'how AI content detection works',
+    'how does plagiarism checker work',
+    'AI detection algorithm',
+    'perplexity burstiness analysis',
+    'how to detect AI text',
+    'AI writing detection explained',
+    'plagiarism checking process',
+    'ContentGuard AI how it works',
+    'essay analysis steps',
+    'content analysis pipeline',
+  ],
+  alternates: {
+    canonical: PAGE_URL,
+  },
+  openGraph: {
+    title: TITLE,
+    description: DESCRIPTION,
+    url: PAGE_URL,
+    siteName: 'ContentGuard AI',
+    type: 'website',
+    images: [
+      {
+        url: `${BASE_URL}/og-image.png`,
+        width: 1200,
+        height: 630,
+        alt: TITLE,
+      },
+    ],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: TITLE,
+    description: DESCRIPTION,
+    images: [`${BASE_URL}/og-image.png`],
+  },
 };
 
 export default function HowItWorksPage() {
@@ -67,7 +108,7 @@ export default function HowItWorksPage() {
               href="/ai-detector"
               className="btn-primary inline-flex items-center gap-2 text-sm px-6 py-2.5"
             >
-              Try It Out Now
+              Try the Free AI Detector Now
             </Link>
           </div>
         </div>

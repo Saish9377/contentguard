@@ -7,6 +7,7 @@ import { ThemeProvider, ThemeInitScript } from '@/components/layout/ThemeProvide
 import { Toaster } from 'sonner';
 
 export const metadata: Metadata = {
+  metadataBase: new URL(APP_URL),
   title: {
     default: `${APP_NAME} — Free AI Content Detector & Plagiarism Checker`,
     template: `%s | ${APP_NAME}`,
@@ -22,22 +23,13 @@ export const metadata: Metadata = {
     'citation generator',
     'AI writing detector',
     'content originality checker',
+    'free AI content checker',
+    'ChatGPT detector',
+    'detect AI text',
   ],
   authors: [{ name: APP_NAME }],
   creator: APP_NAME,
-  openGraph: {
-    type: 'website',
-    locale: 'en_US',
-    url: APP_URL,
-    title: `${APP_NAME} — Free AI Content Detector & Plagiarism Checker`,
-    description: APP_DESCRIPTION,
-    siteName: APP_NAME,
-  },
-  twitter: {
-    card: 'summary_large_image',
-    title: `${APP_NAME} — Free AI Content Detector & Plagiarism Checker`,
-    description: APP_DESCRIPTION,
-  },
+  publisher: APP_NAME,
   robots: {
     index: true,
     follow: true,
@@ -48,6 +40,28 @@ export const metadata: Metadata = {
       'max-image-preview': 'large',
       'max-snippet': -1,
     },
+  },
+  openGraph: {
+    type: 'website',
+    locale: 'en_US',
+    url: APP_URL,
+    siteName: APP_NAME,
+    title: `${APP_NAME} — Free AI Content Detector & Plagiarism Checker`,
+    description: APP_DESCRIPTION,
+    images: [
+      {
+        url: '/og-image.png',
+        width: 1200,
+        height: 630,
+        alt: `${APP_NAME} — Free AI Content Detector & Plagiarism Checker`,
+      },
+    ],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: `${APP_NAME} — Free AI Content Detector & Plagiarism Checker`,
+    description: APP_DESCRIPTION,
+    images: ['/og-image.png'],
   },
 };
 
@@ -84,6 +98,8 @@ export default function RootLayout({
                 'Readability Analysis',
                 'Citation Generation',
                 'PDF Report Export',
+                'AI Text Humanizer',
+                'Word Counter',
               ],
             }),
           }}

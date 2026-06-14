@@ -4,35 +4,54 @@ import { FeaturesSection } from '@/components/home/FeaturesSection';
 import { HowItWorks } from '@/components/home/HowItWorks';
 import { SocialProof } from '@/components/home/SocialProof';
 
+const BASE_URL = 'https://contentguard.saishshinde2030.workers.dev';
+
 export const metadata: Metadata = {
-  title: 'ContentGuard AI — Free Plagiarism Checker & AI Content Detector',
-  description: 'Check plagiarism, detect AI-generated content, fix grammar, and analyze readability — 100% free, no signup required. Trusted by 10,000+ students and writers.',
-  keywords: 'free plagiarism checker, AI content detector, check plagiarism online, AI detector free, grammar checker, readability analyzer, citation generator, word counter',
+  title: 'Free AI Content Checker & Plagiarism Detector — ContentGuard AI',
+  description:
+    'Free AI content checker, plagiarism detector, grammar fixer & readability analyzer — no signup. Detect ChatGPT, Claude & Gemini text instantly. Trusted by 10,000+ writers.',
+  keywords: [
+    'free AI content checker',
+    'plagiarism checker free',
+    'AI detector free',
+    'check plagiarism online free',
+    'AI content detector',
+    'detect ChatGPT text',
+    'grammar checker online',
+    'readability analyzer',
+    'citation generator',
+    'word counter free',
+    'humanize AI text',
+    'content originality checker',
+  ],
   alternates: {
-    canonical: 'https://contentguard.saishshinde2030.workers.dev/',
-  },
-  verification: {
-    google: 'z58V08TqQ3fW6VwI5ZJ-D3-78n8m1-u2Y0xV5E9v78I',
+    canonical: BASE_URL + '/',
   },
   openGraph: {
-    title: 'ContentGuard AI — Free Plagiarism Checker & AI Content Detector',
-    description: 'Check plagiarism, detect AI-generated content, fix grammar, and analyze readability — 100% free, no signup required. Trusted by 10,000+ students and writers.',
-    url: 'https://contentguard.saishshinde2030.workers.dev/',
+    title: 'Free AI Content Checker & Plagiarism Detector — ContentGuard AI',
+    description:
+      'Free AI content checker, plagiarism detector, grammar fixer & readability analyzer — no signup. Detect ChatGPT, Claude & Gemini text instantly.',
+    url: BASE_URL + '/',
+    siteName: 'ContentGuard AI',
     type: 'website',
     images: [
       {
-        url: 'https://contentguard.saishshinde2030.workers.dev/og-image.png',
+        url: BASE_URL + '/og-image.png',
         width: 1200,
         height: 630,
-        alt: 'ContentGuard AI — Free Plagiarism Checker & AI Content Detector',
+        alt: 'ContentGuard AI — Free AI Content Checker & Plagiarism Detector',
       },
     ],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'ContentGuard AI — Free Plagiarism Checker & AI Content Detector',
-    description: 'Check plagiarism, detect AI-generated content, fix grammar, and analyze readability — 100% free, no signup required. Trusted by 10,000+ students and writers.',
-    images: ['https://contentguard.saishshinde2030.workers.dev/og-image.png'],
+    title: 'Free AI Content Checker & Plagiarism Detector — ContentGuard AI',
+    description:
+      'Free AI content checker, plagiarism detector, grammar fixer & readability analyzer — no signup. Detect ChatGPT, Claude & Gemini text instantly.',
+    images: [BASE_URL + '/og-image.png'],
+  },
+  verification: {
+    google: 'QV5UpQrtIwvvBBZtqvs4EjXGbMVRwKdi8yB4cCnD-qE',
   },
 };
 
@@ -40,60 +59,62 @@ export default function HomePage() {
   const webAppSchema = {
     '@context': 'https://schema.org',
     '@type': 'WebApplication',
-    'name': 'ContentGuard AI',
-    'url': 'https://contentguard.saishshinde2030.workers.dev',
-    'description': 'Free AI content detection, plagiarism checking, grammar analysis, and writing tools',
-    'applicationCategory': 'UtilitiesApplication',
-    'operatingSystem': 'Web',
-    'offers': {
+    name: 'ContentGuard AI',
+    url: BASE_URL,
+    description:
+      'Free AI content detection, plagiarism checking, grammar analysis, and writing tools. No signup required.',
+    applicationCategory: 'UtilitiesApplication',
+    operatingSystem: 'Web',
+    offers: {
       '@type': 'Offer',
-      'price': '0',
-      'priceCurrency': 'USD',
+      price: '0',
+      priceCurrency: 'USD',
     },
-    'featureList': [
+    featureList: [
       'AI Content Detection',
       'Plagiarism Checker',
       'Grammar Checker',
       'Readability Analyzer',
       'Citation Generator',
       'Word Counter',
+      'AI Text Humanizer',
     ],
   };
 
   const faqSchema = {
     '@context': 'https://schema.org',
     '@type': 'FAQPage',
-    'mainEntity': [
+    mainEntity: [
       {
         '@type': 'Question',
-        'name': 'Is ContentGuard AI free to use?',
-        'acceptedAnswer': {
+        name: 'Is ContentGuard AI free to use?',
+        acceptedAnswer: {
           '@type': 'Answer',
-          'text': 'Yes, ContentGuard AI is 100% free to use with no signup required. All 6 tools are available at no cost.',
+          text: 'Yes, ContentGuard AI is 100% free to use with no signup required. All 7 tools are available at no cost.',
         },
       },
       {
         '@type': 'Question',
-        'name': 'How does the plagiarism checker work?',
-        'acceptedAnswer': {
+        name: 'How does the plagiarism checker work?',
+        acceptedAnswer: {
           '@type': 'Answer',
-          'text': 'ContentGuard scans your text against billions of web pages and academic sources to detect copied content. Results show Unique%, Exact Match%, and Partial Match% with source links.',
+          text: 'ContentGuard AI scans your text against billions of web pages and academic sources to detect copied content. Results show Unique%, Exact Match%, and Partial Match% with source links.',
         },
       },
       {
         '@type': 'Question',
-        'name': 'Can it detect ChatGPT and AI-written content?',
-        'acceptedAnswer': {
+        name: 'Can it detect ChatGPT and AI-written content?',
+        acceptedAnswer: {
           '@type': 'Answer',
-          'text': 'Yes. ContentGuard AI detects text generated by ChatGPT, Claude, Gemini, and other AI models using advanced statistical markers like perplexity and burstiness.',
+          text: 'Yes. ContentGuard AI detects text generated by ChatGPT, Claude, Gemini, and other AI models using advanced statistical markers like perplexity and burstiness.',
         },
       },
       {
         '@type': 'Question',
-        'name': 'Do I need to create an account?',
-        'acceptedAnswer': {
+        name: 'Do I need to create an account?',
+        acceptedAnswer: {
           '@type': 'Answer',
-          'text': 'No account or signup is required. Simply paste your text or upload a file and get instant results.',
+          text: 'No account or signup is required. Simply paste your text or upload a file and get instant results.',
         },
       },
     ],
