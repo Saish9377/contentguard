@@ -65,6 +65,18 @@ export default function FeaturesPage() {
           </Link>
         </div>
 
+        <div className="text-center mb-12">
+          <h1 className="text-3xl sm:text-4xl lg:text-5xl font-syne font-extrabold tracking-tight text-zinc-900 dark:text-zinc-100">
+            ContentGuard AI{' '}
+            <span className="bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 bg-clip-text text-transparent">
+              Features
+            </span>
+          </h1>
+          <p className="text-sm sm:text-base text-zinc-500 dark:text-zinc-400 max-w-xl mx-auto mt-3 leading-relaxed">
+            7 free writing tools — detect AI text, check plagiarism, fix grammar, score readability, generate citations, count words, and humanize AI content.
+          </p>
+        </div>
+
         <FeaturesSection />
 
         {/* Bottom CTA */}

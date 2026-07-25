@@ -14,7 +14,7 @@ export const metadata: Metadata = {
     'contact ContentGuard AI',
     'ContentGuard support',
     'AI detector support',
-    'plagiarism checker help',
+    'report plagiarism checker issue',
     'writing tools feedback',
     'ContentGuard partnership',
     'report false positive AI detection',

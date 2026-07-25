@@ -15,7 +15,7 @@ export const metadata: Metadata = {
   keywords: [
     'ContentGuard AI FAQ',
     'AI detector questions',
-    'plagiarism checker help',
+    'plagiarism checker accuracy FAQ',
     'is AI content detector free',
     'how does plagiarism checker work',
     'AI detection accuracy',
@@ -138,6 +138,18 @@ export default function FAQPage() {
             <ArrowLeft className="w-3.5 h-3.5" />
             Back to Home
           </Link>
+        </div>
+
+        <div className="text-center mb-12">
+          <h1 className="text-2xl sm:text-3xl lg:text-4xl font-syne font-extrabold tracking-tight text-text-primary">
+            Frequently Asked{' '}
+            <span className="bg-gradient-to-r from-accent-purple to-accent-pink bg-clip-text text-transparent">
+              Questions
+            </span>
+          </h1>
+          <p className="text-xs sm:text-sm text-text-muted max-w-lg mx-auto mt-3 leading-relaxed">
+            Everything you need to know about AI detection accuracy, plagiarism checking, privacy, and our free writing tools.
+          </p>
         </div>
 
         <FAQSection />
